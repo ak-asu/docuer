@@ -42,7 +42,6 @@ export default function GoogleDriveFilePicker({
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(
     new Set(),
   );
-  const [currentPath, setCurrentPath] = useState<DriveFile[]>([]);
 
   useEffect(() => {
     if (isOpen) {
@@ -242,7 +241,7 @@ export default function GoogleDriveFilePicker({
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               startContent={<Search size={18} />}
-              clearable
+              isClearable
               onClear={() => setSearchQuery("")}
             />
 
@@ -259,7 +258,7 @@ export default function GoogleDriveFilePicker({
                   <div className="text-center py-12 text-gray-500">
                     <p>No files found</p>
                     <p className="text-sm">
-                      Make sure you've connected your Google Drive account
+                      Make sure you&apos;ve connected your Google Drive account
                     </p>
                   </div>
                 )}
