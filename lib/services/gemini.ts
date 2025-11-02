@@ -9,15 +9,53 @@ import type {
 import { supermemoryService } from "./supermemory";
 
 const GEMINI_MODEL = "gemini-2.0-flash";
+const RATE_LIMIT_REQUESTS_PER_MINUTE = 9;
+const RATE_LIMIT_WINDOW_MS = 60000; // 1 minute
 
 class GeminiService {
   private client: GoogleGenAI | null = null;
+  private requestTimestamps: number[] = [];
 
   constructor() {
     const apiKey = process.env.GEMINI_API_KEY;
     if (apiKey) {
       this.client = new GoogleGenAI({ apiKey });
     }
+  }
+
+  /**
+   * Rate limiter to prevent exceeding Gemini API limits
+   * Ensures no more than 9 requests per minute
+   */
+  private async enforceRateLimit(): Promise<void> {
+    const now = Date.now();
+
+    // Remove timestamps older than 1 minute
+    this.requestTimestamps = this.requestTimestamps.filter(
+      (timestamp) => now - timestamp < RATE_LIMIT_WINDOW_MS,
+    );
+
+    // If we've made 9+ requests in the last minute, wait
+    if (this.requestTimestamps.length >= RATE_LIMIT_REQUESTS_PER_MINUTE) {
+      const oldestRequest = this.requestTimestamps[0];
+      const waitTime = RATE_LIMIT_WINDOW_MS - (now - oldestRequest) + 1000; // Add 1 second buffer
+
+      if (waitTime > 0) {
+        console.log(
+          `⏳ Rate limit reached. Waiting ${Math.ceil(waitTime / 1000)}s before next Gemini request...`,
+        );
+        await new Promise((resolve) => setTimeout(resolve, waitTime));
+
+        // Clean up old timestamps after waiting
+        const afterWait = Date.now();
+        this.requestTimestamps = this.requestTimestamps.filter(
+          (timestamp) => afterWait - timestamp < RATE_LIMIT_WINDOW_MS,
+        );
+      }
+    }
+
+    // Record this request
+    this.requestTimestamps.push(Date.now());
   }
 
   /**
@@ -65,6 +103,9 @@ Requirements:
 
 Return the article content only (no titles, just the body text).`;
 
+      // Enforce rate limiting
+      await this.enforceRateLimit();
+
       const result = await this.client.models.generateContent({
         model: GEMINI_MODEL,
         contents: prompt,
@@ -83,7 +124,7 @@ Return the article content only (no titles, just the body text).`;
         topicId: topic.id,
         courseId,
         duration,
-        difficulty: this.determineDifficulty(topic.importance),
+        difficulty: topic.difficulty,
         prerequisites: topic.prerequisites,
         relatedArticles: topic.relatedTopics,
         createdAt: new Date().toISOString(),
@@ -165,6 +206,9 @@ ${profileText ? "7. Reference user's background or interests if relevant" : ""}
 
 Return ONLY the article content (no titles, metadata, or extra text). Must be 160 words or less.`;
 
+      // Enforce rate limiting
+      await this.enforceRateLimit();
+
       const result = await this.client.models.generateContent({
         model: GEMINI_MODEL,
         contents: prompt,
@@ -188,7 +232,7 @@ Return ONLY the article content (no titles, metadata, or extra text). Must be 16
         topicId: topic.id,
         courseId,
         duration,
-        difficulty: this.determineDifficulty(topic.importance),
+        difficulty: topic.difficulty,
         prerequisites: topic.prerequisites,
         relatedArticles: topic.relatedTopics,
         createdAt: new Date().toISOString(),
@@ -228,41 +272,50 @@ Return ONLY the article content (no titles, metadata, or extra text). Must be 16
         .join("\n\n")
         .substring(0, 15000); // Limit total context
 
-      const prompt = `Analyze the following documentation memories and extract key learning topics.
+      const prompt = `Analyze the following documentation memories and extract key learning topics to form an INTELLIGENT KNOWLEDGE GRAPH.
 
 Documentation Memories:
 ${memoryContext}
 
-Task: Identify 5-15 distinct learning topics from this documentation.
+Task: Identify 5-15 distinct learning topics that form a richly interconnected knowledge web.
 
 For each topic:
 1. Provide a clear, concise name
 2. Write a brief description (1-2 sentences)
 3. Rate importance (0.0-1.0, where 1.0 is most important)
-4. List prerequisites (topic names that should be learned first) - CAN BE MULTIPLE
-5. List related topics - CAN BE MULTIPLE
+4. Rate difficulty level as "beginner", "intermediate", or "advanced"
+5. List prerequisites (topic names that should be learned first) - BE GENEROUS with prerequisites
+6. List related topics - MAXIMUM 5 related topics that share concepts
 
-Requirements:
-- Topics should form a KNOWLEDGE WEB, not a linear sequence
-- Each topic can have MULTIPLE prerequisites and MULTIPLE related topics
-- A topic can connect to several other topics, creating a network/graph structure
-- Topics should be logical learning units
-- Order by importance (most important first)
-- Ensure topics cover the main concepts
-- Include both foundational and advanced topics
-- Prerequisites should reference other topic names in the list
-- Create rich interconnections between topics where they naturally relate
+CRITICAL REQUIREMENTS for creating an INTELLIGENT GRAPH:
+- Create a KNOWLEDGE WEB with DENSE, MEANINGFUL connections
+- Identify SEMANTIC RELATIONSHIPS: Topics that share concepts should be related
+  * Example: "Smart Contracts" and "Contract Creation" share the "contract" concept → MUST be related
+  * Example: "Contracts" and "Contract Creation" have depth hierarchy → "Contracts" is prerequisite
+  * Example: "Blockchain Basics" and "Transactions" → Transactions happens on blockchain → RELATED
+  * Example: "State Variables" and "State" → State Variables is specialized form → "State" is prerequisite
+- AVOID linear chains: Don't just connect topic[i] to topic[i+1]
+- Prerequisites indicate foundational knowledge needed (can be 0-3 per topic)
+- Related topics share concepts/themes but aren't strictly prerequisites (2-5 per topic)
+- Beginner topics: Basic concepts, no/few prerequisites
+- Intermediate topics: Build on basics, have 1-2 prerequisites
+- Advanced topics: Complex concepts, have 2-3 prerequisites
+- Ensure no isolated nodes: Every topic connects to at least 2 others
 
-Return as JSON array:
+Return as JSON array ordered by difficulty (beginner → intermediate → advanced):
 [
   {
     "name": "Topic Name",
     "description": "Brief description of what this topic covers",
     "importance": 0.9,
-    "prerequisites": ["Other Topic Name", "Another Topic"],
+    "difficulty": "beginner",
+    "prerequisites": ["Foundational Topic"],
     "relatedTopics": ["Related Topic 1", "Related Topic 2", "Related Topic 3"]
   }
 ]`;
+
+      // Enforce rate limiting
+      await this.enforceRateLimit();
 
       const result = await this.client.models.generateContent({
         model: GEMINI_MODEL,
@@ -280,6 +333,7 @@ Return as JSON array:
         name: string;
         description: string;
         importance: number;
+        difficulty: "beginner" | "intermediate" | "advanced";
         prerequisites: string[];
         relatedTopics: string[];
       }>;
@@ -290,6 +344,7 @@ Return as JSON array:
         name: topic.name,
         description: topic.description,
         importance: topic.importance,
+        difficulty: topic.difficulty || "intermediate",
         prerequisites: topic.prerequisites || [],
         relatedTopics: topic.relatedTopics || [],
       }));
@@ -331,6 +386,9 @@ Return as JSON array:
     "difficulty": "easy"
   }
 ]`;
+
+      // Enforce rate limiting
+      await this.enforceRateLimit();
 
       const result = await this.client.models.generateContent({
         model: GEMINI_MODEL,
@@ -396,6 +454,9 @@ Content:
 ${content}
 
 Return as JSON array of section texts: ["section1", "section2", ...]`;
+
+      // Enforce rate limiting
+      await this.enforceRateLimit();
 
       const result = await this.client.models.generateContent({
         model: GEMINI_MODEL,
@@ -487,6 +548,9 @@ Requirements:
 
 Return the expanded content only.`;
 
+      // Enforce rate limiting
+      await this.enforceRateLimit();
+
       const result = await this.client.models.generateContent({
         model: GEMINI_MODEL,
         contents: prompt,
@@ -510,6 +574,9 @@ Return the expanded content only.`;
     }
 
     try {
+      // Enforce rate limiting
+      await this.enforceRateLimit();
+
       const result = await this.client.models.generateContent({
         model: GEMINI_MODEL,
         contents: prompt,
@@ -519,6 +586,97 @@ Return the expanded content only.`;
     } catch (error) {
       console.error("Gemini content generation error:", error);
       throw new Error("Failed to generate content with Gemini");
+    }
+  }
+
+  /**
+   * Filter and prioritize documentation pages based on user profile
+   * Returns URLs that should be pre-selected for the user
+   */
+  async filterPagesForUser(
+    urls: string[],
+    mainPageContent: string,
+    userProfile: {
+      level?: string;
+      learningGoals?: string[];
+      interests?: string[];
+    },
+  ): Promise<string[]> {
+    if (!this.client) {
+      // Fallback: return first 30 URLs if Gemini not configured
+      return urls.slice(0, Math.min(30, urls.length));
+    }
+
+    try {
+      const prompt = `You are an AI learning assistant helping to personalize documentation selection for a user.
+
+User Profile:
+- Experience Level: ${userProfile.level || "intermediate"}
+- Learning Goals: ${userProfile.learningGoals?.join(", ") || "General learning"}
+- Interests: ${userProfile.interests?.join(", ") || "General topics"}
+
+Documentation Overview:
+${mainPageContent.substring(0, 2000)}
+
+Available Pages (${urls.length} total):
+${urls
+  .slice(0, 100)
+  .map((url, i) => `${i + 1}. ${url}`)
+  .join("\n")}
+
+Task: Select the pages that should be PRE-SELECTED for this user based on their profile.
+The user will see ALL pages in the list, but only the selected ones will be checked by default.
+
+Selection Rules:
+1. For BEGINNERS: Select getting-started, basics, fundamentals, tutorials, examples (skip advanced/internal pages)
+2. For INTERMEDIATES: Select core concepts, common patterns, best practices, main features
+3. For ADVANCED: Select everything relevant including architecture, performance, internals, advanced features
+4. Always match pages to user's specific interests and learning goals
+5. Aim for 20-50 pages for beginners/intermediates, 40-80 for advanced users
+
+Return ONLY valid JSON with indices (no markdown, no explanation):
+{
+  "preSelected": [1, 5, 8, 12, ...]
+}
+
+Where numbers are 1-based indices from the list above.`;
+
+      // Enforce rate limiting
+      await this.enforceRateLimit();
+
+      const result = await this.client.models.generateContent({
+        model: GEMINI_MODEL,
+        contents: prompt,
+      });
+
+      const responseText = result.text || "";
+
+      // Extract JSON from response
+      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        console.warn(
+          "Could not parse Gemini filtering response, using default selection",
+        );
+        return urls.slice(0, Math.min(30, urls.length));
+      }
+
+      const parsed = JSON.parse(jsonMatch[0]);
+
+      // Convert indices to URLs
+      const preSelected = (parsed.preSelected || [])
+        .map((idx: number) => urls[idx - 1])
+        .filter(Boolean);
+
+      // Ensure we have at least some pages selected
+      if (preSelected.length === 0) {
+        return urls.slice(0, Math.min(30, urls.length));
+      }
+
+      return preSelected;
+    } catch (error) {
+      console.error("Gemini filtering error:", error);
+      // Fallback: return first 30 pages
+      return urls.slice(0, Math.min(30, urls.length));
     }
   }
 }

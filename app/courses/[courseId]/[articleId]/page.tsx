@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardBody, Button } from "@heroui/react";
@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { useStore } from "@/lib/store/useStore";
+import { authService } from "@/lib/services/auth";
 import QuizModal from "@/app/components/QuizModal";
 import Layout from "@/app/components/Layout";
 
@@ -66,8 +67,13 @@ export default function CourseShortPage() {
   const articleId = params?.articleId as string | undefined;
   const courseId = params?.courseId as string | undefined;
   const router = useRouter();
-  const { articles, courses, toggleArticleComplete, toggleArticleBookmark } =
-    useStore();
+  const {
+    articles,
+    courses,
+    toggleArticleComplete,
+    toggleArticleBookmark,
+    onboardingCompleted,
+  } = useStore();
 
   const [showCompleteAnimation, setShowCompleteAnimation] = useState(false);
   const [showRelatedArticles, setShowRelatedArticles] = useState(false);
@@ -75,6 +81,18 @@ export default function CourseShortPage() {
   const [touchStartY, setTouchStartY] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const lastTapTimeRef = useRef(0);
+
+  useEffect(() => {
+    const currentUser = authService.getCurrentUser();
+    if (!currentUser) {
+      router.replace("/login");
+      return;
+    }
+    if (!onboardingCompleted) {
+      router.replace("/onboarding");
+      return;
+    }
+  }, [router, onboardingCompleted]);
 
   // Filter articles by course
   const courseArticles = articles.filter((a) => a.courseId === courseId);
@@ -94,12 +112,7 @@ export default function CourseShortPage() {
   const currentArticle = courseArticles[currentArticleIndex];
   const course = courses.find((c) => c.id === courseId);
 
-  // Keep URL in sync with current article when navigating
-  useEffect(() => {
-    if (currentArticle && courseId && currentArticle.id !== articleId) {
-      router.replace(`/courses/${courseId}/${currentArticle.id}`);
-    }
-  }, [currentArticleIndex, currentArticle, courseId, articleId, router]);
+  // Removed: URL updates now happen synchronously in handleScroll to prevent animation interruption
 
   const handleDoubleTap = () => {
     const getCurrentTime = () => Date.now();
@@ -116,22 +129,60 @@ export default function CourseShortPage() {
   };
 
   const [scrollDirection, setScrollDirection] = useState<"up" | "down">("up");
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  const lastWheelTimeRef = useRef(0);
 
   const handleScroll = (direction: "up" | "down") => {
-    if (direction === "up" && currentArticleIndex < courseArticles.length - 1) {
+    if (isTransitioning) return;
+
+    const canScrollUp =
+      direction === "up" && currentArticleIndex < courseArticles.length - 1;
+    const canScrollDown = direction === "down" && currentArticleIndex > 0;
+
+    if (canScrollUp) {
+      setIsTransitioning(true);
       setScrollDirection("up");
-      setCurrentArticleIndex(currentArticleIndex + 1);
-    } else if (direction === "down" && currentArticleIndex > 0) {
+      const newIndex = currentArticleIndex + 1;
+      setCurrentArticleIndex(newIndex);
+
+      const newArticle = courseArticles[newIndex];
+      if (newArticle && courseId) {
+        window.history.replaceState(
+          null,
+          "",
+          `/courses/${courseId}/${newArticle.id}`,
+        );
+      }
+
+      setTimeout(() => setIsTransitioning(false), 300);
+    } else if (canScrollDown) {
+      setIsTransitioning(true);
       setScrollDirection("down");
-      setCurrentArticleIndex(currentArticleIndex - 1);
+      const newIndex = currentArticleIndex - 1;
+      setCurrentArticleIndex(newIndex);
+
+      const newArticle = courseArticles[newIndex];
+      if (newArticle && courseId) {
+        window.history.replaceState(
+          null,
+          "",
+          `/courses/${courseId}/${newArticle.id}`,
+        );
+      }
+
+      setTimeout(() => setIsTransitioning(false), 300);
     }
   };
 
   const handleTouchStart = (e: React.TouchEvent) => {
-    setTouchStartY(e.touches[0].clientY);
+    if (!isTransitioning) {
+      setTouchStartY(e.touches[0].clientY);
+    }
   };
 
   const handleTouchEnd = (e: React.TouchEvent) => {
+    if (isTransitioning) return;
+
     const touchEndY = e.changedTouches[0].clientY;
     const diff = touchStartY - touchEndY;
 
@@ -145,10 +196,21 @@ export default function CourseShortPage() {
   };
 
   const handleWheel = (e: React.WheelEvent) => {
-    if (e.deltaY > 0) {
-      handleScroll("up");
-    } else {
-      handleScroll("down");
+    e.preventDefault();
+
+    const now = Date.now();
+    if (now - lastWheelTimeRef.current < 500 || isTransitioning) {
+      return;
+    }
+
+    lastWheelTimeRef.current = now;
+
+    if (Math.abs(e.deltaY) > 10) {
+      if (e.deltaY > 0) {
+        handleScroll("up");
+      } else {
+        handleScroll("down");
+      }
     }
   };
 
@@ -217,7 +279,7 @@ export default function CourseShortPage() {
               className="absolute inset-0 m-2"
               onClick={handleDoubleTap}
             >
-              <div className="absolute inset-0 bg-gradient-to-br from-blue-900 via-blue-700 to-green-600 opacity-90 rounded-lg" />
+              <div className="absolute inset-0 bg-linear-to-br from-blue-900 via-blue-700 to-green-600 opacity-90 rounded-lg" />
 
               <article className="relative h-full flex flex-col justify-center p-6 md:p-12">
                 <div className="space-y-6">

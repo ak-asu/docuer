@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardBody, Button } from "@heroui/react";
 import { BookOpen, MessageCircle, Bookmark, Brain, Check } from "lucide-react";
 import { useStore } from "@/lib/store/useStore";
+import { authService } from "@/lib/services/auth";
 import QuizModal from "@/app/components/QuizModal";
 import Layout from "@/app/components/Layout";
 
@@ -51,6 +52,7 @@ export default function ArticlesPage() {
     setCurrentArticleIndex,
     toggleArticleComplete,
     toggleArticleBookmark,
+    onboardingCompleted,
   } = useStore();
 
   const [showCompleteAnimation, setShowCompleteAnimation] = useState(false);
@@ -61,6 +63,18 @@ export default function ArticlesPage() {
   const containerRef = useRef<HTMLDivElement>(null);
 
   const currentArticle = articles[currentArticleIndex];
+
+  useEffect(() => {
+    const currentUser = authService.getCurrentUser();
+    if (!currentUser) {
+      router.replace("/login");
+      return;
+    }
+    if (!onboardingCompleted) {
+      router.replace("/onboarding");
+      return;
+    }
+  }, [router, onboardingCompleted]);
 
   useEffect(() => {
     if (articleId) {

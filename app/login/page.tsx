@@ -3,12 +3,14 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { authService, USERS } from "@/lib/services/auth";
+import { useStore } from "@/lib/store/useStore";
 
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const { onboardingCompleted, updateUserProfile } = useStore();
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -17,7 +19,16 @@ export default function LoginPage() {
     const user = authService.login(email, password);
 
     if (user) {
-      router.push("/");
+      updateUserProfile({
+        name: user.name,
+        email: user.email,
+      });
+
+      if (!onboardingCompleted) {
+        router.push("/onboarding");
+      } else {
+        router.push("/courses");
+      }
     } else {
       setError("Invalid email or password");
     }

@@ -19,6 +19,7 @@ export interface ExtractedTopic {
   name: string;
   description: string;
   importance: number; // 0-1 scale
+  difficulty: "beginner" | "intermediate" | "advanced";
   prerequisites: string[];
   relatedTopics: string[];
 }

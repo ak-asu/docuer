@@ -100,6 +100,7 @@ Return the response in JSON format as an array of topics:
         name: topic.name,
         description: topic.description,
         importance: topic.importance,
+        difficulty: "intermediate" as const, // Default to intermediate for Cohere
         prerequisites: topic.prerequisites || [],
         relatedTopics: topic.relatedTopics || [],
       }));

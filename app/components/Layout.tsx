@@ -20,7 +20,8 @@ export default function Layout({ children }: LayoutProps) {
   const pathname = usePathname();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const { userProfile, updateUserProfile } = useStore();
+  const { userProfile, updateUserProfile, setOnboardingCompleted, articles } =
+    useStore();
 
   // Check authentication on mount
   useEffect(() => {
@@ -38,7 +39,8 @@ export default function Layout({ children }: LayoutProps) {
 
   const handleLogout = () => {
     authService.logout();
-    router.push("/login");
+    setOnboardingCompleted(false);
+    router.replace("/login");
   };
 
   const navItems = [
@@ -74,14 +76,23 @@ export default function Layout({ children }: LayoutProps) {
               {navItems.map((item) => {
                 const Icon = item.icon;
                 const active = isActive(item.path);
+                const isArticles = item.path === "/articles";
+                const disabled = isArticles && articles.length === 0;
+
                 return (
                   <button
                     key={item.path}
-                    onClick={() => router.push(item.path)}
+                    onClick={() => {
+                      if (disabled) return;
+                      router.push(item.path);
+                    }}
+                    aria-disabled={disabled}
                     className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${
-                      active
-                        ? "text-blue-600 bg-blue-50 dark:bg-blue-900/20 font-semibold"
-                        : "text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-50 hover:bg-gray-100 dark:hover:bg-gray-800"
+                      disabled
+                        ? "text-gray-400 bg-transparent cursor-not-allowed opacity-60"
+                        : active
+                          ? "text-blue-600 bg-blue-50 dark:bg-blue-900/20 font-semibold"
+                          : "text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-50 hover:bg-gray-100 dark:hover:bg-gray-800"
                     }`}
                   >
                     <Icon size={20} />
@@ -142,17 +153,24 @@ export default function Layout({ children }: LayoutProps) {
                 {navItems.map((item) => {
                   const Icon = item.icon;
                   const active = isActive(item.path);
+                  const isArticles = item.path === "/articles";
+                  const disabled = isArticles && articles.length === 0;
+
                   return (
                     <button
                       key={item.path}
                       onClick={() => {
+                        if (disabled) return;
                         router.push(item.path);
                         setIsMobileMenuOpen(false);
                       }}
+                      aria-disabled={disabled}
                       className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
-                        active
-                          ? "text-blue-600 bg-blue-50 font-semibold"
-                          : "text-gray-600 hover:bg-gray-100"
+                        disabled
+                          ? "text-gray-400 bg-transparent cursor-not-allowed opacity-60"
+                          : active
+                            ? "text-blue-600 bg-blue-50 font-semibold"
+                            : "text-gray-600 hover:bg-gray-100"
                       }`}
                     >
                       <Icon size={20} />

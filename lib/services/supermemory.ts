@@ -42,8 +42,12 @@ class SupermemoryService {
     }
 
     try {
+      // Use user-specific container tag for behavior tracking
+      const containerTag = `user_${behavior.userId}`;
+
       await this.client.memories.add({
         content: JSON.stringify(behavior),
+        containerTag: containerTag,
         metadata: {
           userId: behavior.userId,
           articleId: behavior.articleId,
@@ -135,6 +139,7 @@ class SupermemoryService {
   async trackArticleView(
     userId: string,
     articleId: string,
+    courseId: string,
     timeSpent?: number,
   ): Promise<void> {
     await this.addMemory({
@@ -142,7 +147,7 @@ class SupermemoryService {
       articleId,
       action: "viewed",
       timestamp: new Date().toISOString(),
-      metadata: { timeSpent },
+      metadata: { timeSpent, courseId },
     });
   }
 
@@ -152,26 +157,31 @@ class SupermemoryService {
   async trackArticleCompletion(
     userId: string,
     articleId: string,
+    courseId: string,
   ): Promise<void> {
     await this.addMemory({
       userId,
       articleId,
       action: "completed",
       timestamp: new Date().toISOString(),
-      metadata: {},
+      metadata: { courseId },
     });
   }
 
   /**
    * Track article bookmark
    */
-  async trackArticleBookmark(userId: string, articleId: string): Promise<void> {
+  async trackArticleBookmark(
+    userId: string,
+    articleId: string,
+    courseId: string,
+  ): Promise<void> {
     await this.addMemory({
       userId,
       articleId,
       action: "bookmarked",
       timestamp: new Date().toISOString(),
-      metadata: {},
+      metadata: { courseId },
     });
   }
 
@@ -181,6 +191,7 @@ class SupermemoryService {
   async trackQuizTaken(
     userId: string,
     articleId: string,
+    courseId: string,
     score: number,
   ): Promise<void> {
     await this.addMemory({
@@ -188,8 +199,159 @@ class SupermemoryService {
       articleId,
       action: "quiz_taken",
       timestamp: new Date().toISOString(),
-      metadata: { quizScore: score },
+      metadata: { quizScore: score, courseId },
     });
+  }
+
+  /**
+   * Analyze user behavior patterns to provide insights for personalized learning
+   * Returns patterns like topics with high engagement, areas of struggle, etc.
+   */
+  async analyzeUserBehaviorPatterns(
+    userId: string,
+    courseId: string,
+  ): Promise<{
+    preferredTopics: string[]; // Topics user spends more time on
+    strugglingTopics: string[]; // Topics with low quiz scores or many revisits
+    fastLearningTopics: string[]; // Topics completed quickly with high scores
+    engagementScore: number; // Overall engagement (0-1)
+  }> {
+    if (!this.client) {
+      return {
+        preferredTopics: [],
+        strugglingTopics: [],
+        fastLearningTopics: [],
+        engagementScore: 0.5,
+      };
+    }
+
+    try {
+      // Search for user's behavior in this course
+      const behaviors = await this.searchMemories(
+        userId,
+        `courseId ${courseId}`,
+      );
+
+      if (behaviors.length === 0) {
+        return {
+          preferredTopics: [],
+          strugglingTopics: [],
+          fastLearningTopics: [],
+          engagementScore: 0.5,
+        };
+      }
+
+      // Analyze time spent per article
+      const timeSpentMap = new Map<string, number>();
+      const quizScoresMap = new Map<string, number[]>();
+      const completionTimesMap = new Map<string, number>();
+      const viewTimestamps = new Map<string, number>();
+
+      behaviors.forEach((behavior) => {
+        const articleId = behavior.articleId;
+
+        if (behavior.action === "viewed" && behavior.metadata?.timeSpent) {
+          const current = timeSpentMap.get(articleId) || 0;
+          timeSpentMap.set(
+            articleId,
+            current + (behavior.metadata.timeSpent as number),
+          );
+
+          if (!viewTimestamps.has(articleId)) {
+            viewTimestamps.set(
+              articleId,
+              new Date(behavior.timestamp).getTime(),
+            );
+          }
+        }
+
+        if (
+          behavior.action === "quiz_taken" &&
+          behavior.metadata?.quizScore !== undefined
+        ) {
+          const scores = quizScoresMap.get(articleId) || [];
+          scores.push(behavior.metadata.quizScore as number);
+          quizScoresMap.set(articleId, scores);
+        }
+
+        if (behavior.action === "completed") {
+          const viewTime = viewTimestamps.get(articleId);
+          if (viewTime) {
+            const completionTime =
+              new Date(behavior.timestamp).getTime() - viewTime;
+            completionTimesMap.set(articleId, completionTime);
+          }
+        }
+      });
+
+      // Identify preferred topics (high time spent, high quiz scores)
+      const preferredTopics: string[] = [];
+      timeSpentMap.forEach((time, articleId) => {
+        const scores = quizScoresMap.get(articleId) || [];
+        const avgScore =
+          scores.length > 0
+            ? scores.reduce((a, b) => a + b, 0) / scores.length
+            : 0;
+
+        if (time > 120 && avgScore > 70) {
+          // More than 2 min and good scores
+          preferredTopics.push(articleId);
+        }
+      });
+
+      // Identify struggling topics (low quiz scores, many attempts)
+      const strugglingTopics: string[] = [];
+      quizScoresMap.forEach((scores, articleId) => {
+        const avgScore = scores.reduce((a, b) => a + b, 0) / scores.length;
+        if (avgScore < 60 || scores.length > 2) {
+          // Low score or many retakes
+          strugglingTopics.push(articleId);
+        }
+      });
+
+      // Identify fast learning topics (quick completion with good scores)
+      const fastLearningTopics: string[] = [];
+      completionTimesMap.forEach((time, articleId) => {
+        const scores = quizScoresMap.get(articleId) || [];
+        const avgScore =
+          scores.length > 0
+            ? scores.reduce((a, b) => a + b, 0) / scores.length
+            : 0;
+
+        if (time < 300000 && avgScore > 80) {
+          // Less than 5 min, high score
+          fastLearningTopics.push(articleId);
+        }
+      });
+
+      // Calculate engagement score
+      const totalActions = behaviors.length;
+      const completions = behaviors.filter(
+        (b) => b.action === "completed",
+      ).length;
+      const quizTaken = behaviors.filter(
+        (b) => b.action === "quiz_taken",
+      ).length;
+      const engagementScore = Math.min(
+        (completions * 0.5 + quizTaken * 0.3 + totalActions * 0.2) / 10,
+        1.0,
+      );
+
+      return {
+        preferredTopics,
+        strugglingTopics,
+        fastLearningTopics,
+        engagementScore,
+      };
+    } catch (error) {
+      console.error("Error analyzing user behavior patterns:", error);
+      return {
+        preferredTopics: [],
+        strugglingTopics: [],
+        fastLearningTopics: [],
+        engagementScore: 0.5,
+      };
+    }
   }
 
   /**
@@ -282,19 +444,128 @@ class SupermemoryService {
   /**
    * Check if documentation already exists in Supermemory (shared container)
    */
-  async checkDocumentationExists(courseId: string): Promise<boolean> {
+  async checkDocumentationExists(sourceHash: string): Promise<boolean> {
     try {
       if (!this.client) return false;
 
+      const containerTag = ContainerTags.documentation(sourceHash)[0];
       const results = await this.client.search.memories({
-        q: "documentation",
-        containerTag: courseId,
+        q: "documentation_page",
+        containerTag: containerTag,
         limit: 1,
       });
       return (results.results?.length ?? 0) > 0;
     } catch (error) {
       console.error("Error checking documentation:", error);
       return false;
+    }
+  }
+
+  /**
+   * Get list of existing URLs in documentation container
+   */
+  async getExistingUrls(sourceHash: string): Promise<string[]> {
+    try {
+      if (!this.client) return [];
+
+      const containerTag = ContainerTags.documentation(sourceHash)[0];
+      const results = await this.client.search.memories({
+        q: "documentation_page",
+        containerTag: containerTag,
+        limit: 500, // Increased to get all pages
+      });
+
+      const urls: string[] = [];
+
+      for (const result of results.results || []) {
+        try {
+          // Extract URL from metadata
+          const metadata = (result as { metadata?: Record<string, unknown> })
+            .metadata;
+          if (metadata && typeof metadata.url === "string") {
+            urls.push(metadata.url);
+          }
+        } catch {
+          continue;
+        }
+      }
+
+      console.log(`📋 Found ${urls.length} existing URLs in Supermemory`);
+      return [...new Set(urls)]; // Remove duplicates
+    } catch (error) {
+      console.error("Error fetching existing URLs:", error);
+      return [];
+    }
+  }
+
+  /**
+   * Retrieve existing documentation from Supermemory
+   * Returns scraped content format for compatibility
+   */
+  async retrieveExistingDocumentation(sourceHash: string): Promise<
+    Array<{
+      url: string;
+      title: string;
+      content: string;
+      markdown: string;
+      links: string[];
+      metadata?: Record<string, unknown>;
+    }>
+  > {
+    try {
+      if (!this.client) return [];
+
+      const containerTag = ContainerTags.documentation(sourceHash)[0];
+      const results = await this.client.search.memories({
+        q: "documentation_page",
+        containerTag: containerTag,
+        limit: 500,
+      });
+
+      const documents: Array<{
+        url: string;
+        title: string;
+        content: string;
+        markdown: string;
+        links: string[];
+        metadata?: Record<string, unknown>;
+      }> = [];
+
+      for (const result of results.results || []) {
+        try {
+          const memory = result.memory;
+          const metadata =
+            (result as { metadata?: Record<string, unknown> }).metadata || {};
+
+          let content = "";
+          if (typeof memory === "string") {
+            content = memory;
+          } else {
+            const memObj = memory as { content?: string };
+            content = memObj?.content || "";
+          }
+
+          documents.push({
+            url: String(metadata.url || ""),
+            title: String(metadata.title || "Untitled"),
+            content: content,
+            markdown: content,
+            links: [],
+            metadata: metadata,
+          });
+        } catch (error) {
+          console.error("Error parsing document:", error);
+          continue;
+        }
+      }
+
+      console.log(
+        `📚 Retrieved ${documents.length} existing documents from Supermemory`,
+      );
+      return documents;
+    } catch (error) {
+      console.error("Error retrieving existing documentation:", error);
+      return [];
     }
   }
 
@@ -510,12 +781,21 @@ class SupermemoryService {
     }
 
     try {
+      const containerTag = ContainerTags.documentation(sourceHash)[0];
+      console.log(
+        `🔍 Searching for documentation in container: ${containerTag}`,
+      );
+
       // Search for all documentation memories in the shared container
       const results = await this.client.search.memories({
-        q: "documentation", // API requires non-empty query (min 1 char)
-        containerTag: ContainerTags.documentation(sourceHash)[0],
+        q: "documentation_page", // Match the type we store
+        containerTag: containerTag,
         limit: 100, // API max is 100
       });
+
+      console.log(
+        `📚 Found ${results.results?.length || 0} memories in Supermemory`,
+      );
 
       return (
         results.results?.map((result) => {
@@ -630,6 +910,150 @@ class SupermemoryService {
         averageQuizScore: 0,
         currentStreak: 0,
       };
+    }
+  }
+
+  /**
+   * Delete user-specific course memories (behavior tracking, progress)
+   * Does NOT delete shared documentation - only user's personal data for this course
+   */
+  async deleteCourseMemories(userId: string, courseId: string): Promise<void> {
+    if (!this.client) {
+      console.warn("Supermemory is not configured. Skipping memory deletion.");
+      return;
+    }
+
+    try {
+      console.log(
+        `🗑️ Deleting course memories for user ${userId}, course ${courseId}`,
+      );
+
+      // Use the same container tag pattern as when storing
+      const containerTag = `user_${userId}`;
+
+      // Search for all user behaviors in their container
+      const memories = await this.client.search.memories({
+        q: "action viewed completed bookmarked quiz_taken",
+        containerTag: containerTag,
+        limit: 100,
+      });
+
+      if (!memories.results || memories.results.length === 0) {
+        console.log("No user memories found in container");
+        return;
+      }
+
+      // Filter memories for this specific course
+      const memoryIds: string[] = [];
+      for (const result of memories.results) {
+        try {
+          const memory = result.memory;
+          let content = "";
+
+          if (typeof memory === "string") {
+            content = memory;
+          } else {
+            const memObj = memory as { content?: string };
+            content = memObj?.content || "";
+          }
+
+          // Parse and verify this memory is for the specific course
+          const behavior = JSON.parse(content);
+          if (behavior.metadata?.courseId === courseId) {
+            if (result.id) {
+              memoryIds.push(result.id);
+            }
+          }
+        } catch {
+          // If not JSON or can't parse, skip
+          continue;
+        }
+      }
+
+      if (memoryIds.length === 0) {
+        console.log("No course-specific memories found");
+        return;
+      }
+
+      console.log(`Found ${memoryIds.length} memories to delete`);
+
+      // Delete memories one by one
+      let deletedCount = 0;
+      for (const memoryId of memoryIds) {
+        try {
+          await this.client.memories.delete(memoryId);
+          deletedCount++;
+        } catch (error) {
+          console.error(`Failed to delete memory ${memoryId}:`, error);
+        }
+
+        // Rate limiting
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+
+      console.log(`✅ Successfully deleted ${deletedCount} course memories`);
+    } catch (error) {
+      console.error("Supermemory delete course memories error:", error);
+      // Don't throw - deletion shouldn't break the app
+    }
+  }
+
+  /**
+   * Delete user's course progress container
+   * This removes the user's traversal/progress data for a specific course
+   */
+  async deleteCourseProgress(userId: string, courseId: string): Promise<void> {
+    if (!this.client) {
+      console.warn(
+        "Supermemory is not configured. Skipping progress deletion.",
+      );
+      return;
+    }
+
+    try {
+      console.log(
+        `🗑️ Deleting course progress container for user ${userId}, course ${courseId}`,
+      );
+
+      const containerTag = ContainerTags.courseProgress(userId, courseId)[0];
+
+      // Search for all memories in this container
+      const memories = await this.client.search.memories({
+        q: "progress",
+        containerTag: containerTag,
+        limit: 100,
+      });
+
+      if (!memories.results || memories.results.length === 0) {
+        console.log("No progress memories found");
+        return;
+      }
+
+      // Delete each memory
+      let deletedCount = 0;
+      for (const result of memories.results) {
+        if (result.id) {
+          try {
+            await this.client.memories.delete(result.id);
+            deletedCount++;
+          } catch (error) {
+            console.error(
+              `Failed to delete progress memory ${result.id}:`,
+              error,
+            );
+          }
+
+          // Rate limiting
+          await new Promise((resolve) => setTimeout(resolve, 100));
+        }
+      }
+
+      console.log(
+        `✅ Deleted ${deletedCount} progress memories from container ${containerTag}`,
+      );
+    } catch (error) {
+      console.error("Supermemory delete course progress error:", error);
+      // Don't throw - deletion shouldn't break the app
     }
   }
 }

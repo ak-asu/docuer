@@ -3,16 +3,21 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useStore } from "@/lib/store/useStore";
+import { authService } from "@/lib/services/auth";
 
 export default function Home() {
   const router = useRouter();
   const { onboardingCompleted } = useStore();
 
   useEffect(() => {
-    if (onboardingCompleted) {
-      router.replace("/courses");
-    } else {
+    const currentUser = authService.getCurrentUser();
+
+    if (!currentUser) {
+      router.replace("/login");
+    } else if (!onboardingCompleted) {
       router.replace("/onboarding");
+    } else {
+      router.replace("/courses");
     }
   }, [onboardingCompleted, router]);
 

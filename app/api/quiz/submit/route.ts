@@ -5,11 +5,18 @@ import { supermemoryService } from "@/lib/services/supermemory";
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { userId, articleId, score, totalQuestions } = body;
+    const { userId, articleId, courseId, score, totalQuestions } = body;
 
     if (!userId || !articleId || score === undefined || !totalQuestions) {
       return NextResponse.json(
         { error: "userId, articleId, score, and totalQuestions are required" },
+        { status: 400 },
+      );
+    }
+
+    if (!courseId) {
+      return NextResponse.json(
+        { error: "courseId is required for tracking" },
         { status: 400 },
       );
     }
@@ -22,6 +29,7 @@ export async function POST(request: NextRequest) {
       await supermemoryService.trackQuizTaken(
         userId,
         articleId,
+        courseId,
         percentageScore,
       );
     }

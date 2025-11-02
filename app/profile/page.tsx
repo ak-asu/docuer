@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import {
   Card,
   CardBody,
@@ -19,13 +20,27 @@ import {
   Target,
 } from "lucide-react";
 import { useStore } from "@/lib/store/useStore";
+import { authService } from "@/lib/services/auth";
 import EditProfileModal from "@/app/components/EditProfileModal";
 import GoogleDriveIntegration from "@/app/components/GoogleDriveIntegration";
 import Layout from "@/app/components/Layout";
 
 export default function UserDetailPage() {
-  const { userProfile, courses } = useStore();
+  const router = useRouter();
+  const { userProfile, courses, onboardingCompleted } = useStore();
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+
+  useEffect(() => {
+    const currentUser = authService.getCurrentUser();
+    if (!currentUser) {
+      router.replace("/login");
+      return;
+    }
+    if (!onboardingCompleted) {
+      router.replace("/onboarding");
+      return;
+    }
+  }, [router, onboardingCompleted]);
 
   const stats = [
     {

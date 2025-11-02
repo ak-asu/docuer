@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { persist, createJSONStorage } from "zustand/middleware";
 import { authService } from "../services/auth";
 
 export interface UserPreferences {
@@ -16,6 +16,9 @@ export interface UserProfile {
   completedArticles: number;
   completedCourses: number;
   currentStreak: number;
+  level?: "beginner" | "intermediate" | "advanced";
+  learningGoals?: string[];
+  interests?: string[];
 }
 
 export interface Course {
@@ -35,6 +38,7 @@ export interface Article {
   content: string;
   courseId: string;
   duration: string;
+  difficulty?: "beginner" | "intermediate" | "advanced";
   completed: boolean;
   bookmarked: boolean;
   relatedArticles: string[];
@@ -49,6 +53,7 @@ export interface QuizQuestion {
 }
 
 interface AppState {
+  _hasHydrated: boolean;
   onboardingCompleted: boolean;
   userPreferences: UserPreferences;
   userProfile: UserProfile;
@@ -60,12 +65,14 @@ interface AppState {
   isLoading: boolean;
   error: string | null;
 
+  setHasHydrated: (state: boolean) => void;
+
   setOnboardingCompleted: (completed: boolean) => void;
   updateUserPreferences: (preferences: Partial<UserPreferences>) => void;
   updateUserProfile: (profile: Partial<UserProfile>) => void;
   addCourse: (course: Course) => void;
   updateCourse: (id: string, updates: Partial<Course>) => void;
-  deleteCourse: (id: string) => void;
+  deleteCourse: (id: string) => Promise<void>;
   toggleArticleComplete: (articleId: string) => void;
   toggleArticleBookmark: (articleId: string) => void;
   setCurrentArticleIndex: (index: number) => void;
@@ -89,6 +96,7 @@ interface AppState {
 export const useStore = create<AppState>()(
   persist(
     (set) => ({
+      _hasHydrated: false,
       onboardingCompleted: false,
       userPreferences: {
         theme: "light",
@@ -111,6 +119,8 @@ export const useStore = create<AppState>()(
       currentArticleIndex: 0,
       isLoading: false,
       error: null,
+
+      setHasHydrated: (state) => set({ _hasHydrated: state }),
 
       setOnboardingCompleted: (completed) =>
         set({ onboardingCompleted: completed }),
@@ -137,10 +147,59 @@ export const useStore = create<AppState>()(
           ),
         })),
 
-      deleteCourse: (id) =>
-        set((state) => ({
-          courses: state.courses.filter((course) => course.id !== id),
-        })),
+      deleteCourse: async (id) => {
+        // Get userId from auth service
+        const currentUser = authService.getCurrentUser();
+        if (!currentUser) {
+          console.error("User not authenticated");
+          return;
+        }
+        const userId = currentUser.id;
+
+        try {
+          // Call API to delete course from Neo4j and Supermemory
+          const response = await fetch("/api/courses/delete", {
+            method: "DELETE",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              courseId: id,
+              userId,
+            }),
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || "Failed to delete course");
+          }
+
+          // Remove course and its articles from local state
+          set((state) => ({
+            courses: state.courses.filter((course) => course.id !== id),
+            articles: state.articles.filter(
+              (article) => article.courseId !== id,
+            ),
+            quizQuestions: state.quizQuestions.filter(
+              (quiz) =>
+                !state.articles.some(
+                  (a) => a.id === quiz.articleId && a.courseId === id,
+                ),
+            ),
+          }));
+
+          console.log(`✅ Course ${id} deleted successfully`);
+        } catch (error) {
+          console.error("Failed to delete course:", error);
+          // Even if API fails, remove from local state
+          set((state) => ({
+            courses: state.courses.filter((course) => course.id !== id),
+            articles: state.articles.filter(
+              (article) => article.courseId !== id,
+            ),
+          }));
+        }
+      },
 
       toggleArticleBookmark: (articleId) =>
         set((state) => {
@@ -298,6 +357,7 @@ export const useStore = create<AppState>()(
                 body: JSON.stringify({
                   userId: currentUser.id,
                   articleId,
+                  courseId: article.courseId,
                 }),
               }).catch((error) =>
                 console.error("Failed to track completion:", error),
@@ -320,6 +380,35 @@ export const useStore = create<AppState>()(
     }),
     {
       name: "learning-app-storage",
+      storage: createJSONStorage(() => localStorage),
+      partialize: (state) => ({
+        onboardingCompleted: state.onboardingCompleted,
+        userPreferences: state.userPreferences,
+        userProfile: state.userProfile,
+        courses: state.courses,
+        articles: state.articles,
+        bookmarkedArticles: state.bookmarkedArticles,
+      }),
+      onRehydrateStorage: () => (state) => {
+        state?.setHasHydrated(true);
+      },
     },
   ),
 );
+
+// Hook to check if store has hydrated from localStorage
+export const useHasHydrated = () => {
+  return useStore((state) => state._hasHydrated);
+};
+
+// Hook to check authentication and onboarding with hydration awareness
+export const useAuthCheck = () => {
+  const hasHydrated = useHasHydrated();
+  const onboardingCompleted = useStore((state) => state.onboardingCompleted);
+
+  return {
+    hasHydrated,
+    onboardingCompleted,
+    shouldCheckAuth: hasHydrated, // Only check auth after hydration
+  };
+};

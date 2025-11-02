@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import {
@@ -19,6 +20,7 @@ import {
   Calendar,
 } from "lucide-react";
 import { useStore } from "@/lib/store/useStore";
+import { authService } from "@/lib/services/auth";
 import Layout from "@/app/components/Layout";
 import KnowledgeGraphVisualization from "@/app/components/KnowledgeGraphVisualization";
 
@@ -26,7 +28,19 @@ export default function CourseDetailPage() {
   const params = useParams();
   const router = useRouter();
   const courseId = params?.courseId as string;
-  const { courses, articles } = useStore();
+  const { courses, articles, onboardingCompleted } = useStore();
+
+  useEffect(() => {
+    const currentUser = authService.getCurrentUser();
+    if (!currentUser) {
+      router.replace("/login");
+      return;
+    }
+    if (!onboardingCompleted) {
+      router.replace("/onboarding");
+      return;
+    }
+  }, [router, onboardingCompleted]);
 
   const course = courses.find((c) => c.id === courseId);
   const courseArticles = articles.filter((a) => a.courseId === courseId);

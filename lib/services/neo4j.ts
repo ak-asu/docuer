@@ -114,6 +114,7 @@ class Neo4jService {
           SET t.name = $name,
               t.description = $description,
               t.importance = $importance,
+              t.difficulty = $difficulty,
               t.createdAt = datetime()
           WITH t
           MATCH (c:Course {id: $courseId})
@@ -125,34 +126,59 @@ class Neo4jService {
             name: topic.name,
             description: topic.description,
             importance: topic.importance,
+            difficulty: topic.difficulty,
             courseId,
           },
         );
 
-        // Create prerequisite relationships
+        // Create prerequisite relationships (bidirectional for better querying)
         for (const prereq of topic.prerequisites) {
           await session.run(
             `
             MATCH (t1:Topic {id: $topicId})
             MATCH (t2:Topic {name: $prereqName})
             MERGE (t1)-[:PREREQUISITE]->(t2)
+            MERGE (t2)-[:ENABLES]->(t1)
             `,
             { topicId: topic.id, prereqName: prereq },
           );
         }
 
-        // Create related topic relationships
+        // Create related topic relationships (bidirectional with semantic strength)
         for (const related of topic.relatedTopics) {
           await session.run(
             `
             MATCH (t1:Topic {id: $topicId})
             MATCH (t2:Topic {name: $relatedName})
-            MERGE (t1)-[:RELATED_TO {strength: 0.7}]->(t2)
+            MERGE (t1)-[:RELATED_TO {strength: 0.8}]->(t2)
+            MERGE (t2)-[:RELATED_TO {strength: 0.8}]->(t1)
             `,
             { topicId: topic.id, relatedName: related },
           );
         }
       }
+
+      // Create additional semantic connections based on name similarity and concept overlap
+      console.log("🔗 Creating intelligent semantic connections...");
+      await session.run(
+        `
+        MATCH (c:Course {id: $courseId})-[:CONTAINS]->(t1:Topic)
+        MATCH (c)-[:CONTAINS]->(t2:Topic)
+        WHERE t1 <> t2 
+        AND NOT EXISTS((t1)-[:RELATED_TO]-(t2))
+        AND NOT EXISTS((t1)-[:PREREQUISITE]-(t2))
+        WITH t1, t2, 
+          CASE 
+            WHEN t1.name CONTAINS t2.name OR t2.name CONTAINS t1.name THEN 0.9
+            WHEN ANY(word IN split(toLower(t1.name), ' ') WHERE word IN split(toLower(t2.name), ' ')) THEN 0.6
+            ELSE 0
+          END as similarity
+        WHERE similarity > 0.5
+        MERGE (t1)-[:RELATED_TO {strength: similarity, type: 'semantic'}]->(t2)
+        MERGE (t2)-[:RELATED_TO {strength: similarity, type: 'semantic'}]->(t1)
+        `,
+        { courseId },
+      );
     } finally {
       await session.close();
     }
@@ -276,6 +302,183 @@ class Neo4jService {
   }
 
   /**
+   * Get learning path filtered by user level (beginner/intermediate/advanced)
+   * Returns only articles that:
+   * 1. Match the user's difficulty level or below
+   * 2. Are connected in the knowledge graph (no isolated nodes)
+   * 3. Form a valid learning sequence
+   */
+  async getLearningPathByLevel(
+    courseId: string,
+    userLevel: "beginner" | "intermediate" | "advanced",
+  ): Promise<string[]> {
+    const session = this.getSession();
+    try {
+      // Define difficulty ordering
+      const difficultyMap: Record<string, number> = {
+        beginner: 1,
+        intermediate: 2,
+        advanced: 3,
+      };
+      const maxDifficulty = difficultyMap[userLevel];
+
+      const result = await session.run(
+        `
+        MATCH (c:Course {id: $courseId})-[:CONTAINS]->(t:Topic)-[:HAS_ARTICLE]->(a:Article)
+        WHERE 
+          CASE t.difficulty
+            WHEN 'beginner' THEN 1
+            WHEN 'intermediate' THEN 2
+            WHEN 'advanced' THEN 3
+            ELSE 2
+          END <= $maxDifficulty
+        // Ensure articles have at least one connection (not isolated)
+        AND (
+          EXISTS((a)-[:PREREQUISITE]-()) OR 
+          EXISTS(()-[:PREREQUISITE]-(a)) OR
+          EXISTS((t)-[:RELATED_TO]-()) OR
+          EXISTS(()-[:RELATED_TO]-(t))
+        )
+        OPTIONAL MATCH path = (a)-[:PREREQUISITE*]->(prereq:Article)
+        WITH a, t, length(path) as depth
+        ORDER BY t.importance DESC, depth DESC, a.createdAt ASC
+        RETURN DISTINCT a.id as articleId
+        `,
+        { courseId, maxDifficulty: neo4j.int(maxDifficulty) },
+      );
+
+      return result.records.map((record) => record.get("articleId"));
+    } finally {
+      await session.close();
+    }
+  }
+
+  /**
+   * Get personalized learning path based on comprehensive user profile
+   * Uses intelligent scoring system considering:
+   * - Difficulty level and capabilities
+   * - User interests and goals
+   * - Learning preferences
+   * - Topic importance and relevance
+   * Returns only highly relevant, connected articles forming a valid learning path
+   */
+  async getPersonalizedLearningPath(
+    courseId: string,
+    userProfile: {
+      level?: "beginner" | "intermediate" | "advanced";
+      interests?: string[];
+      learningGoals?: string[];
+      preferredLearningStyle?: string;
+      timeCommitment?: string;
+    },
+  ): Promise<Array<{ articleId: string; score: number; topic: string }>> {
+    const session = this.getSession();
+    try {
+      const difficultyMap: Record<string, number> = {
+        beginner: 1,
+        intermediate: 2,
+        advanced: 3,
+      };
+      const userLevel = userProfile.level || "intermediate";
+      const maxDifficulty = difficultyMap[userLevel];
+
+      // Normalize interests and goals to lowercase for matching
+      const interests = (userProfile.interests || []).map((i) =>
+        i.toLowerCase(),
+      );
+      const goals = (userProfile.learningGoals || []).map((g) =>
+        g.toLowerCase(),
+      );
+
+      const result = await session.run(
+        `
+        MATCH (c:Course {id: $courseId})-[:CONTAINS]->(t:Topic)-[:HAS_ARTICLE]->(a:Article)
+        
+        // Calculate difficulty score (0-1, higher is better)
+        WITH a, t,
+          CASE 
+            WHEN t.difficulty = $userLevel THEN 1.0
+            WHEN CASE t.difficulty
+              WHEN 'beginner' THEN 1
+              WHEN 'intermediate' THEN 2
+              WHEN 'advanced' THEN 3
+              ELSE 2
+            END <= $maxDifficulty THEN 0.7
+            ELSE 0.0
+          END as difficultyScore,
+          
+          // Calculate interest alignment (0-1)
+          CASE 
+            WHEN size($interests) > 0 THEN
+              CASE 
+                WHEN ANY(interest IN $interests WHERE toLower(t.name) CONTAINS interest OR toLower(t.description) CONTAINS interest) THEN 1.0
+                WHEN ANY(interest IN $interests WHERE ANY(word IN split(toLower(t.name), ' ') WHERE word = interest)) THEN 0.8
+                ELSE 0.0
+              END
+            ELSE 0.5
+          END as interestScore,
+          
+          // Calculate goal relevance (0-1)
+          CASE 
+            WHEN size($goals) > 0 THEN
+              CASE 
+                WHEN ANY(goal IN $goals WHERE toLower(t.name) CONTAINS goal OR toLower(t.description) CONTAINS goal) THEN 1.0
+                WHEN ANY(goal IN $goals WHERE ANY(word IN split(toLower(t.name), ' ') WHERE word = goal)) THEN 0.7
+                ELSE 0.3
+              END
+            ELSE 0.5
+          END as goalScore,
+          
+          // Importance score from topic
+          coalesce(t.importance, 0.5) as importanceScore
+        
+        // Ensure articles are connected (not isolated)
+        WHERE (
+          EXISTS((a)-[:PREREQUISITE]-()) OR 
+          EXISTS(()-[:PREREQUISITE]-(a)) OR
+          EXISTS((t)-[:RELATED_TO]-()) OR
+          EXISTS(()-[:RELATED_TO]-(t))
+        )
+        
+        // Calculate weighted final score
+        WITH a, t,
+          (difficultyScore * 0.35 + 
+           interestScore * 0.25 + 
+           goalScore * 0.25 + 
+           importanceScore * 0.15) as finalScore
+        
+        // Only include articles with score above threshold
+        WHERE finalScore >= 0.4
+        
+        // Get prerequisite depth for ordering
+        OPTIONAL MATCH path = (a)-[:PREREQUISITE*]->(prereq:Article)
+        WITH a, t, finalScore, length(path) as depth
+        
+        // Order by score and depth (foundations first)
+        ORDER BY finalScore DESC, depth DESC, a.createdAt ASC
+        
+        RETURN DISTINCT a.id as articleId, finalScore as score, t.name as topic
+        `,
+        {
+          courseId,
+          userLevel,
+          maxDifficulty: neo4j.int(maxDifficulty),
+          interests,
+          goals,
+        },
+      );
+
+      return result.records.map((record) => ({
+        articleId: record.get("articleId"),
+        score: record.get("score"),
+        topic: record.get("topic"),
+      }));
+    } finally {
+      await session.close();
+    }
+  }
+
+  /**
    * Get related articles for an article
    */
   async getRelatedArticles(
@@ -379,6 +582,61 @@ class Neo4jService {
       await session.run(
         "CREATE INDEX IF NOT EXISTS FOR (a:Article) ON (a.difficulty)",
       );
+    } finally {
+      await session.close();
+    }
+  }
+
+  /**
+   * Delete a course and all its related data (topics, articles, user progress)
+   * This gracefully removes course-specific data while preserving shared documentation
+   */
+  async deleteCourse(courseId: string, userId: string): Promise<void> {
+    const session = this.getSession();
+    try {
+      console.log(
+        `🗑️ Deleting course ${courseId} for user ${userId} from Neo4j`,
+      );
+
+      // Delete user's completion relationships for this course
+      await session.run(
+        `
+        MATCH (u:User {id: $userId})-[r:COMPLETED]->(a:Article)<-[:CONTAINS]-(c:Course {id: $courseId})
+        DELETE r
+        `,
+        { userId, courseId },
+      );
+      console.log(`✅ Deleted user completion relationships`);
+
+      // Delete articles and their relationships
+      await session.run(
+        `
+        MATCH (c:Course {id: $courseId})-[:CONTAINS]->(a:Article)
+        DETACH DELETE a
+        `,
+        { courseId },
+      );
+      console.log(`✅ Deleted articles`);
+
+      // Delete topics and their relationships
+      await session.run(
+        `
+        MATCH (c:Course {id: $courseId})-[:CONTAINS]->(t:Topic)
+        DETACH DELETE t
+        `,
+        { courseId },
+      );
+      console.log(`✅ Deleted topics`);
+
+      // Delete the course node
+      await session.run(
+        `
+        MATCH (c:Course {id: $courseId})
+        DETACH DELETE c
+        `,
+        { courseId },
+      );
+      console.log(`✅ Deleted course node`);
     } finally {
       await session.close();
     }

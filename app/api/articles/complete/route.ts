@@ -6,11 +6,18 @@ import { supermemoryService } from "@/lib/services/supermemory";
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { userId, articleId, timeSpent } = body;
+    const { userId, articleId, courseId, timeSpent } = body;
 
     if (!userId || !articleId) {
       return NextResponse.json(
         { error: "userId and articleId are required" },
+        { status: 400 },
+      );
+    }
+
+    if (!courseId) {
+      return NextResponse.json(
+        { error: "courseId is required for tracking" },
         { status: 400 },
       );
     }
@@ -22,9 +29,18 @@ export async function POST(request: NextRequest) {
 
     // Track in Supermemory if configured
     if (supermemoryService.isConfigured()) {
-      await supermemoryService.trackArticleCompletion(userId, articleId);
+      await supermemoryService.trackArticleCompletion(
+        userId,
+        articleId,
+        courseId,
+      );
       if (timeSpent) {
-        await supermemoryService.trackArticleView(userId, articleId, timeSpent);
+        await supermemoryService.trackArticleView(
+          userId,
+          articleId,
+          courseId,
+          timeSpent,
+        );
       }
     }
 

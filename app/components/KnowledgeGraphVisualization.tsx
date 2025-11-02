@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import { Card, CardBody, CardHeader, Button, Chip } from "@heroui/react";
 import { Maximize2, Minimize2, RefreshCw } from "lucide-react";
 import type { Article } from "@/lib/store/useStore";
+import { useStore } from "@/lib/store/useStore";
 
 const ForceGraph2D = dynamic(() => import("react-force-graph-2d"), {
   ssr: false,
@@ -42,24 +43,109 @@ export default function KnowledgeGraphVisualization({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const graphRef = useRef<any>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const userProfile = useStore((state) => state.userProfile);
 
   // Compute graph data using useMemo to avoid unnecessary re-renders
   const graphData = useMemo(() => {
-    // Determine learning path: articles that are available to learn
-    // (all prerequisites completed or no prerequisites)
+    const userLevel = userProfile.level || "beginner";
+    const userInterests = (userProfile.interests || []).map((i) =>
+      i.toLowerCase(),
+    );
+    const userGoals = (userProfile.learningGoals || []).map((g) =>
+      g.toLowerCase(),
+    );
+
+    // Determine learning path with intelligent multi-factor scoring
     const completedIds = new Set(
       articles.filter((a) => a.completed).map((a) => a.id),
     );
     const learningPathIds = new Set<string>();
 
+    // Calculate personalized score for each article
+    const levelPriority: Record<string, number> = {
+      beginner: 1,
+      intermediate: 2,
+      advanced: 3,
+    };
+    const userLevelPriority = levelPriority[userLevel];
+
     articles.forEach((article) => {
-      // An article is in the learning path if:
-      // 1. It's not completed yet
-      // 2. All its prerequisites are completed (if any)
-      if (!article.completed) {
-        // Check if article has prerequisites (via relatedArticles or implicit ordering)
-        // For now, we'll use a simple heuristic:
-        // - If an article has no dependencies or all dependencies are met, it's in the path
+      if (article.completed) return;
+
+      // Multi-factor scoring system
+      let score = 0;
+
+      // 1. Difficulty match (35% weight)
+      const articleDifficulty = article.difficulty || "intermediate";
+      const articlePriority = levelPriority[articleDifficulty];
+      const difficultyScore = (() => {
+        if (articleDifficulty === userLevel) return 1.0; // Perfect match
+        if (articlePriority <= userLevelPriority) return 0.7; // Within range
+        return 0.0; // Too advanced
+      })();
+      score += difficultyScore * 0.35;
+
+      // 2. Interest alignment (25% weight)
+      const interestScore = (() => {
+        if (userInterests.length === 0) return 0.5; // Neutral if no interests
+        const title = article.title.toLowerCase();
+
+        // Direct match
+        if (userInterests.some((interest) => title.includes(interest)))
+          return 1.0;
+        // Partial word match
+        if (
+          userInterests.some((interest) =>
+            title
+              .split(" ")
+              .some(
+                (word) => word.includes(interest) || interest.includes(word),
+              ),
+          )
+        )
+          return 0.8;
+
+        return 0.2; // Minimum score
+      })();
+      score += interestScore * 0.25;
+
+      // 3. Goal relevance (25% weight)
+      const goalScore = (() => {
+        if (userGoals.length === 0) return 0.5; // Neutral if no goals
+        const title = article.title.toLowerCase();
+
+        // Direct match
+        if (userGoals.some((goal) => title.includes(goal))) return 1.0;
+        // Partial word match
+        if (
+          userGoals.some((goal) =>
+            title
+              .split(" ")
+              .some((word) => word.includes(goal) || goal.includes(word)),
+          )
+        )
+          return 0.7;
+
+        return 0.3; // Minimum score for goals
+      })();
+      score += goalScore * 0.25;
+
+      // 4. Prerequisite readiness (15% weight)
+      const prereqScore = (() => {
+        if (!article.relatedArticles || article.relatedArticles.length === 0) {
+          return 1.0; // Foundation topic - highly ready
+        }
+        const completedPrereqs = article.relatedArticles.filter((id) =>
+          completedIds.has(id),
+        ).length;
+        return completedPrereqs / article.relatedArticles.length;
+      })();
+      score += prereqScore * 0.15;
+
+      // Include in learning path if score exceeds threshold (0.4)
+      // AND prerequisites are met
+      const prereqsMet = prereqScore >= 0.5; // At least 50% of prereqs completed
+      if (score >= 0.4 && prereqsMet) {
         learningPathIds.add(article.id);
       }
     });
@@ -113,7 +199,12 @@ export default function KnowledgeGraphVisualization({
     });
 
     return { nodes, links };
-  }, [articles]);
+  }, [
+    articles,
+    userProfile.level,
+    userProfile.interests,
+    userProfile.learningGoals,
+  ]);
 
   // Compute dimensions based on fullscreen state
   const dimensions = useMemo(() => {

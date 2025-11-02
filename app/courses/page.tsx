@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   Tabs,
@@ -14,11 +14,18 @@ import {
   Select,
   SelectItem,
   Progress,
+  Modal,
+  ModalContent,
+  ModalHeader,
+  ModalBody,
+  ModalFooter,
+  Checkbox,
 } from "@heroui/react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Plus, BookOpen, Edit, Trash2, Play } from "lucide-react";
 import { z } from "zod";
-import { useStore, Course } from "@/lib/store/useStore";
+import { useStore, useAuthCheck, Course } from "@/lib/store/useStore";
+import { authService } from "@/lib/services/auth";
 import EditCourseModal from "@/app/components/EditCourseModal";
 import GoogleDriveFilePicker from "@/app/components/GoogleDriveFilePicker";
 import Layout from "@/app/components/Layout";
@@ -65,6 +72,40 @@ export default function CoursesPage() {
   } | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
+
+  // Advanced URL flow state
+  const [urlPreview, setUrlPreview] = useState<{
+    mainUrl: string;
+    title: string;
+    description: string;
+    siteMap: string[];
+    totalPages: number;
+    preSelectedUrls?: string[];
+  } | null>(null);
+  const [selectedUrls, setSelectedUrls] = useState<string[]>([]);
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [processingStage, setProcessingStage] = useState<
+    "idle" | "fetching-preview" | "selecting" | "creating-course"
+  >("idle");
+  const [processingMessage, setProcessingMessage] = useState("");
+
+  const { shouldCheckAuth, onboardingCompleted: isOnboardingCompleted } =
+    useAuthCheck();
+
+  useEffect(() => {
+    // Wait for store to hydrate before checking
+    if (!shouldCheckAuth) return;
+
+    const currentUser = authService.getCurrentUser();
+    if (!currentUser) {
+      router.replace("/login");
+      return;
+    }
+    if (!isOnboardingCompleted) {
+      router.replace("/onboarding");
+      return;
+    }
+  }, [router, isOnboardingCompleted, shouldCheckAuth]);
 
   const showNotification = (type: "error" | "success", message: string) => {
     setNotification({ type, message });
@@ -142,36 +183,29 @@ export default function CoursesPage() {
       }
 
       if (sourceType === "url" && documentationUrl) {
-        // Create course from documentation URL using API
+        // Simple URL flow - create course directly
         await createCourseFromUrl(
           documentationUrl,
           formData.title,
           formData.description,
           formData.category,
         );
+        // Reset form and switch to existing tab after success
+        setFormData({ title: "", description: "", category: "" });
+        setDocumentationUrl("");
+        setSourceType("url");
+        setErrors({});
+        setSelectedTab("existing");
       } else if (sourceType === "gdrive" && selectedDriveFiles.length > 0) {
-        // Create course from Google Drive files
-        // This would call the API to import the selected files
+        // Google Drive flow - TODO
         showNotification(
           "success",
           `Google Drive integration - ${selectedDriveFiles.length} file(s) selected for import`,
         );
-        // TODO: Call API to create course from Drive files
       } else if (sourceType === "url-advanced" && documentationUrl) {
-        // TODO: Implement two-phase Firecrawl
-        showNotification(
-          "success",
-          "Advanced URL selection - Backend ready! URL: " + documentationUrl,
-        );
+        // Advanced URL flow - two-phase: preview then select
+        await handleAdvancedUrlFlow();
       }
-
-      setFormData({ title: "", description: "", category: "" });
-      setDocumentationUrl("");
-      setGoogleDriveUrl("");
-      setSelectedDriveFiles([]);
-      setSourceType("url");
-      setErrors({});
-      setSelectedTab("existing");
     } catch (err) {
       if (err instanceof z.ZodError) {
         const newErrors: Partial<Record<keyof CourseFormData, string>> = {};
@@ -184,8 +218,139 @@ export default function CoursesPage() {
     }
   };
 
-  const handleDeleteCourse = (id: string) => {
-    deleteCourse(id);
+  const handleAdvancedUrlFlow = async () => {
+    try {
+      // Phase 1: Fetch preview
+      setProcessingStage("fetching-preview");
+      setProcessingMessage("Analyzing documentation structure...");
+
+      const currentUser = authService.getCurrentUser();
+      if (!currentUser) {
+        throw new Error("User not authenticated");
+      }
+
+      const response = await fetch("/api/courses/preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          url: documentationUrl,
+          userId: currentUser.id,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to fetch preview");
+      }
+
+      const previewData = await response.json();
+
+      // Set preview data and show modal
+      setUrlPreview({
+        mainUrl: documentationUrl,
+        title: previewData.title,
+        description: previewData.description,
+        siteMap: previewData.siteMap,
+        totalPages: previewData.totalPages,
+        preSelectedUrls: previewData.preSelectedUrls || [],
+      });
+
+      // Pre-select AI-recommended URLs by default
+      setSelectedUrls(previewData.preSelectedUrls || []);
+
+      // Show modal for user selection
+      setProcessingStage("selecting");
+      setShowPreviewModal(true);
+      setProcessingMessage("");
+    } catch (error) {
+      setProcessingStage("idle");
+      setProcessingMessage("");
+      showNotification(
+        "error",
+        error instanceof Error ? error.message : "Failed to fetch preview",
+      );
+    }
+  };
+
+  const handleConfirmUrlSelection = async () => {
+    if (selectedUrls.length === 0) {
+      showNotification("error", "Please select at least one page");
+      return;
+    }
+
+    try {
+      // Close modal and start processing
+      setShowPreviewModal(false);
+      setProcessingStage("creating-course");
+      setProcessingMessage(
+        `Creating course from ${selectedUrls.length} selected pages...`,
+      );
+
+      const currentUser = authService.getCurrentUser();
+      if (!currentUser) {
+        throw new Error("User not authenticated");
+      }
+
+      const response = await fetch("/api/courses/create-advanced", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          selectedUrls,
+          title: formData.title,
+          description: formData.description,
+          category: formData.category,
+          userId: currentUser.id,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to create course");
+      }
+
+      const data = await response.json();
+
+      if (data.success) {
+        // Add course and articles to store
+        const { addCourse: addCourseToStore, addArticles } =
+          useStore.getState();
+        addCourseToStore(data.course);
+        addArticles(data.articles);
+
+        // Reset everything
+        setFormData({ title: "", description: "", category: "" });
+        setDocumentationUrl("");
+        setSourceType("url");
+        setErrors({});
+        setUrlPreview(null);
+        setSelectedUrls([]);
+        setProcessingStage("idle");
+        setProcessingMessage("");
+
+        // Show success and switch to existing tab
+        showNotification("success", "Course created successfully!");
+        setSelectedTab("existing");
+      }
+    } catch (error) {
+      setProcessingStage("idle");
+      setProcessingMessage("");
+      showNotification(
+        "error",
+        error instanceof Error ? error.message : "Failed to create course",
+      );
+    }
+  };
+
+  const handleCancelUrlSelection = () => {
+    setShowPreviewModal(false);
+    setUrlPreview(null);
+    setSelectedUrls([]);
+    setProcessingStage("idle");
+    setProcessingMessage("");
+  };
+
+  const handleDeleteCourse = async (id: string) => {
+    await deleteCourse(id);
   };
 
   const handleContinueCourse = (courseId: string) => {
@@ -567,10 +732,12 @@ export default function CoursesPage() {
                             size="lg"
                             onPress={handleCreateCourse}
                             startContent={<Plus size={18} />}
-                            isLoading={isLoading}
-                            isDisabled={isLoading}
+                            isLoading={isLoading || processingStage !== "idle"}
+                            isDisabled={isLoading || processingStage !== "idle"}
                           >
-                            {isLoading ? "Creating..." : "Create Course"}
+                            {isLoading || processingStage !== "idle"
+                              ? "Processing..."
+                              : "Create Course"}
                           </Button>
                           <Button
                             variant="flat"
@@ -635,6 +802,173 @@ export default function CoursesPage() {
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* Processing Overlay */}
+        {(processingStage === "fetching-preview" ||
+          processingStage === "creating-course") && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center"
+          >
+            <Card className="max-w-md w-full mx-4">
+              <CardBody className="p-8 text-center">
+                <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                <h3 className="text-xl font-bold text-gray-900 mb-2">
+                  {processingStage === "fetching-preview"
+                    ? "Analyzing Documentation"
+                    : "Creating Course"}
+                </h3>
+                <p className="text-gray-600">{processingMessage}</p>
+              </CardBody>
+            </Card>
+          </motion.div>
+        )}
+
+        {/* URL Preview Modal */}
+        <Modal
+          isOpen={showPreviewModal}
+          onClose={handleCancelUrlSelection}
+          size="5xl"
+          scrollBehavior="inside"
+        >
+          <ModalContent>
+            {() => (
+              <>
+                <ModalHeader className="flex flex-col gap-1">
+                  <h2 className="text-2xl font-bold">
+                    Select Pages to Include
+                  </h2>
+                  <p className="text-sm text-gray-600">
+                    {urlPreview?.title} - {urlPreview?.totalPages} pages found
+                  </p>
+                </ModalHeader>
+                <ModalBody>
+                  <div className="space-y-4">
+                    {/* Select All / Deselect All */}
+                    <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                      <div>
+                        <p className="font-medium text-gray-900">
+                          {selectedUrls.length} of{" "}
+                          {urlPreview?.siteMap.length || 0} pages selected
+                        </p>
+                        <p className="text-sm text-gray-600">
+                          {urlPreview?.preSelectedUrls &&
+                            urlPreview.preSelectedUrls.length > 0 && (
+                              <span className="text-blue-600">
+                                {urlPreview.preSelectedUrls.length} pages
+                                personalized for you •
+                              </span>
+                            )}{" "}
+                          Estimated time: ~
+                          {Math.ceil((selectedUrls.length * 2) / 60)} min
+                        </p>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="flat"
+                          onPress={() =>
+                            setSelectedUrls(urlPreview?.siteMap || [])
+                          }
+                        >
+                          Select All
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="flat"
+                          color="primary"
+                          onPress={() =>
+                            setSelectedUrls(urlPreview?.preSelectedUrls || [])
+                          }
+                        >
+                          Smart Selection
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="flat"
+                          onPress={() => setSelectedUrls([])}
+                        >
+                          Deselect All
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Single URL List */}
+                    <div className="space-y-2 max-h-96 overflow-y-auto">
+                      {urlPreview?.siteMap.map((url, index) => {
+                        const isPreSelected =
+                          urlPreview.preSelectedUrls?.includes(url);
+                        return (
+                          <div
+                            key={index}
+                            className={`flex items-start gap-3 p-3 hover:bg-gray-50 rounded-lg transition-colors ${
+                              isPreSelected
+                                ? "border-2 border-blue-200 bg-blue-50/50"
+                                : "border border-gray-200"
+                            }`}
+                          >
+                            <Checkbox
+                              isSelected={selectedUrls.includes(url)}
+                              onValueChange={(checked) => {
+                                if (checked) {
+                                  setSelectedUrls([...selectedUrls, url]);
+                                } else {
+                                  setSelectedUrls(
+                                    selectedUrls.filter((u) => u !== url),
+                                  );
+                                }
+                              }}
+                            />
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <p
+                                  className={`text-sm truncate ${isPreSelected ? "font-medium text-blue-900" : "text-gray-700"}`}
+                                >
+                                  {url.replace(urlPreview.mainUrl, "") || "/"}
+                                </p>
+                                {isPreSelected && (
+                                  <span className="text-xs px-2 py-0.5 bg-blue-600 text-white rounded-full shrink-0">
+                                    Recommended
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-xs text-gray-500 truncate">
+                                {url}
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {selectedUrls.length > 100 && (
+                      <div className="p-4 bg-orange-50 border border-orange-200 rounded-lg">
+                        <p className="text-sm text-orange-800">
+                          ⚠️ Warning: Selecting {selectedUrls.length} pages may
+                          take a significant amount of time to process. Consider
+                          selecting fewer pages for faster course creation.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </ModalBody>
+                <ModalFooter>
+                  <Button variant="light" onPress={handleCancelUrlSelection}>
+                    Cancel
+                  </Button>
+                  <Button
+                    color="primary"
+                    onPress={handleConfirmUrlSelection}
+                    isDisabled={selectedUrls.length === 0}
+                  >
+                    Create Course ({selectedUrls.length} pages)
+                  </Button>
+                </ModalFooter>
+              </>
+            )}
+          </ModalContent>
+        </Modal>
       </main>
     </Layout>
   );

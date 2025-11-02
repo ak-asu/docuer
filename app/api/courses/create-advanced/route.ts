@@ -1,4 +1,3 @@
-// API route for creating a course from documentation URL
 import { NextRequest, NextResponse } from "next/server";
 import { firecrawlService } from "@/lib/services/firecrawl";
 import { cohereService } from "@/lib/services/cohere";
@@ -10,14 +9,21 @@ import { generateSourceHash } from "@/lib/utils/hash";
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { url, title, description, category, userId } = body;
+    const { selectedUrls, title, description, category, userId } = body;
 
-    // Validate input
-    if (!url || !title) {
+    if (
+      !selectedUrls ||
+      !Array.isArray(selectedUrls) ||
+      selectedUrls.length === 0
+    ) {
       return NextResponse.json(
-        { error: "URL and title are required" },
+        { error: "Selected URLs are required" },
         { status: 400 },
       );
+    }
+
+    if (!title) {
+      return NextResponse.json({ error: "Title is required" }, { status: 400 });
     }
 
     if (!userId) {
@@ -27,20 +33,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generate unique course ID
+    console.log(
+      `Creating course from ${selectedUrls.length} selected pages...`,
+    );
+
     const courseId = `course-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
-    // Generate source hash for shared documentation container
+    const mainUrl = selectedUrls[0];
     const sourceHash = generateSourceHash({
       type: "url",
-      identifier: url,
+      identifier: mainUrl,
     });
 
     console.log(`Source hash: ${sourceHash}`);
 
-    // Check if documentation already exists in Supermemory
     let docsExist = false;
-    let scrapedContent;
     let existingUrls: string[] = [];
 
     if (supermemoryService.isConfigured()) {
@@ -48,103 +55,60 @@ export async function POST(request: NextRequest) {
       docsExist = await supermemoryService.checkDocumentationExists(sourceHash);
 
       if (docsExist) {
+        console.log("Fetching existing URLs from Supermemory...");
         existingUrls = await supermemoryService.getExistingUrls(sourceHash);
         console.log(
-          `✅ Found ${existingUrls.length} existing pages in Supermemory`,
+          `Found ${existingUrls.length} existing URLs in documentation`,
         );
       }
     }
 
-    // Step 1: Handle documentation - reuse existing or crawl new pages
-    if (docsExist && existingUrls.length > 0) {
+    // Determine which URLs need to be crawled
+    const urlsToCrawl = selectedUrls.filter(
+      (url) => !existingUrls.includes(url),
+    );
+
+    if (urlsToCrawl.length > 0) {
       console.log(
-        "✅ Documentation already exists - retrieving from Supermemory",
+        `Crawling ${urlsToCrawl.length} new pages (${existingUrls.length} already exist)...`,
       );
+      const newContent = await firecrawlService.crawlSelectedUrls(urlsToCrawl);
 
-      // Retrieve existing documentation
-      scrapedContent =
-        await supermemoryService.retrieveExistingDocumentation(sourceHash);
-
-      // Optional: Crawl only if we want to check for new pages
-      console.log("Checking for new pages not in Supermemory...");
-      try {
-        const newlyCrawled = await firecrawlService.crawlWebsite(url, {
-          maxPages: 50,
-        });
-
-        // Filter out pages that already exist
-        const newPages = newlyCrawled.filter(
-          (page) => !existingUrls.includes(page.url),
-        );
-
-        if (newPages.length > 0) {
-          console.log(`📄 Found ${newPages.length} new pages to add`);
-
-          // Upload only the new pages
-          await supermemoryService.uploadDocumentation(
-            newPages,
-            sourceHash,
-            userId,
-          );
-
-          // Add new pages to scraped content
-          scrapedContent = [...scrapedContent, ...newPages];
-        } else {
-          console.log("✅ No new pages found - using existing documentation");
-        }
-      } catch (crawlError) {
-        console.log(
-          "Crawl check failed, using existing docs only:",
-          crawlError,
-        );
-      }
-    } else {
-      // No existing docs - full crawl
-      console.log("No existing documentation - performing full crawl...");
-      try {
-        scrapedContent = await firecrawlService.crawlWebsite(url, {
-          maxPages: 50, // Limit to avoid excessive costs
-        });
-      } catch (crawlError) {
-        // Fallback to single page scrape if crawl fails
-        console.log(
-          "Crawl failed, attempting single page scrape...",
-          crawlError,
-        );
-        const singlePage = await firecrawlService.scrapeUrl(url);
-        scrapedContent = [singlePage];
-      }
-
-      if (scrapedContent.length === 0) {
+      if (newContent.length === 0 && !docsExist) {
         return NextResponse.json(
           {
-            error:
-              "Failed to scrape documentation. Please check the URL and try again.",
+            error: "Failed to scrape selected pages. Please try again.",
           },
           { status: 400 },
         );
       }
 
-      console.log(`Scraped ${scrapedContent.length} pages`);
+      console.log(`Scraped ${newContent.length} new pages`);
 
-      // Upload to Supermemory shared container
-      if (supermemoryService.isConfigured()) {
-        console.log("Uploading documentation to Supermemory...");
+      if (supermemoryService.isConfigured() && newContent.length > 0) {
+        console.log("Uploading new documentation to Supermemory...");
         await supermemoryService.uploadDocumentation(
-          scrapedContent,
+          newContent,
           sourceHash,
           userId,
         );
-        console.log("✅ Documentation uploaded to shared container");
+        console.log("✅ New documentation uploaded to shared container");
       }
+    } else {
+      console.log(
+        "✅ All selected pages already exist - using cached documentation",
+      );
     }
 
-    // Step 2: Extract topics using Supermemory + Gemini (replaces Cohere)
+    // Get content for all selected URLs (existing + newly crawled)
+    console.log("Fetching content for all selected pages...");
+    const scrapedContent =
+      await firecrawlService.crawlSelectedUrls(selectedUrls);
+
     console.log("Extracting topics from Supermemory memories...");
     let topics;
 
     if (supermemoryService.isConfigured()) {
-      // Get memories from Supermemory
       let memories =
         await supermemoryService.generateTopicHierarchy(sourceHash);
 
@@ -162,25 +126,21 @@ export async function POST(request: NextRequest) {
       }
 
       if (memories.length > 0) {
-        // Use Gemini to extract topics from memories
         topics = await geminiService.extractTopicsFromMemories(memories);
         console.log(
           `Extracted ${topics.length} topics from ${memories.length} memories`,
         );
       } else {
-        // Fallback to Cohere if no memories available
         console.log("No memories found, falling back to Cohere...");
         topics = await cohereService.extractTopics(scrapedContent);
         console.log(`Extracted ${topics.length} topics using Cohere fallback`);
       }
     } else {
-      // Fallback to Cohere if Supermemory not configured
       console.log("Supermemory not configured, using Cohere...");
       topics = await cohereService.extractTopics(scrapedContent);
       console.log(`Extracted ${topics.length} topics using Cohere`);
     }
 
-    // Step 3: Generate personalized articles using Gemini + user profile
     console.log("Generating personalized articles...");
     const articles = await Promise.all(
       topics.map((topic) =>
@@ -194,7 +154,6 @@ export async function POST(request: NextRequest) {
     );
     console.log(`Generated ${articles.length} personalized articles`);
 
-    // Step 4: Store in Neo4j knowledge graph (if configured)
     if (neo4jService.isConfigured()) {
       console.log("Building knowledge graph in Neo4j...");
       try {
@@ -214,7 +173,6 @@ export async function POST(request: NextRequest) {
       console.log("⚠️ Neo4j not configured - data stored in client state only");
     }
 
-    // Return the course data
     return NextResponse.json({
       success: true,
       course: {
@@ -233,7 +191,6 @@ export async function POST(request: NextRequest) {
         content: a.content,
         courseId: a.courseId,
         duration: a.duration,
-        difficulty: a.difficulty,
         completed: false,
         bookmarked: false,
         relatedArticles: [],
@@ -241,7 +198,7 @@ export async function POST(request: NextRequest) {
       topics,
     });
   } catch (error) {
-    console.error("Course creation error:", error);
+    console.error("Advanced course creation error:", error);
     return NextResponse.json(
       {
         error: "Failed to create course",
