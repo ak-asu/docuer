@@ -93,6 +93,10 @@ export async function POST(request: NextRequest) {
           userId,
         );
         console.log("✅ New documentation uploaded to shared container");
+
+        // Wait for indexing (Supermemory may need time to index)
+        console.log("⏳ Waiting for Supermemory indexing...");
+        await new Promise((resolve) => setTimeout(resolve, 2000));
       }
     } else {
       console.log(

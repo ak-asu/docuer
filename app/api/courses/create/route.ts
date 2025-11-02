@@ -87,6 +87,10 @@ export async function POST(request: NextRequest) {
             userId,
           );
 
+          // Wait for indexing
+          console.log("⏳ Waiting for Supermemory indexing...");
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+
           // Add new pages to scraped content
           scrapedContent = [...scrapedContent, ...newPages];
         } else {
@@ -136,6 +140,10 @@ export async function POST(request: NextRequest) {
           userId,
         );
         console.log("✅ Documentation uploaded to shared container");
+
+        // Wait for indexing
+        console.log("⏳ Waiting for Supermemory indexing...");
+        await new Promise((resolve) => setTimeout(resolve, 2000));
       }
     }
 

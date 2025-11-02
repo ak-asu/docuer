@@ -361,7 +361,7 @@ class SupermemoryService {
    */
   async getUserProfile(userId: string): Promise<UserProfile> {
     if (!this.client) {
-      return this.getFallbackProfile(userId);
+      return this.getFallbackProfile();
     }
 
     try {
@@ -373,7 +373,7 @@ class SupermemoryService {
 
       if (!memories.results || memories.results.length === 0) {
         // Fallback to auth service if no memories
-        return this.getFallbackProfile(userId);
+        return this.getFallbackProfile();
       }
 
       const interests: string[] = [];
@@ -424,7 +424,7 @@ class SupermemoryService {
       };
     } catch (error) {
       console.error("Error fetching user profile:", error);
-      return this.getFallbackProfile(userId);
+      return this.getFallbackProfile();
     }
   }
 
@@ -432,7 +432,7 @@ class SupermemoryService {
    * Get fallback profile (for prototype)
    * Note: Returns default profile to avoid circular dependencies
    */
-  private getFallbackProfile(_userId: string): UserProfile {
+  private getFallbackProfile(): UserProfile {
     return {
       interests: [],
       learningGoals: [],
@@ -644,7 +644,7 @@ class SupermemoryService {
     try {
       const connection = await this.client.connections.create("google-drive", {
         redirectUrl,
-        containerTags: [...ContainerTags.documentation(sourceHash)],
+        containerTags: [ContainerTags.documentation(sourceHash)[0]],
         metadata: {
           source: "google-drive",
           platform: "docuer",
@@ -666,9 +666,21 @@ class SupermemoryService {
   /**
    * List Google Drive documents for a user
    * @param userId - User identifier
-   * @param _folderId - Folder ID filter (not yet implemented)
+   * @param folderId - Optional folder ID to filter documents
    */
-  async listGoogleDriveDocuments(userId: string, _folderId?: string | null) {
+  async listGoogleDriveDocuments(
+    userId: string,
+    folderId?: string | null,
+  ): Promise<
+    Array<{
+      id: string;
+      title: string;
+      type: string;
+      url?: string;
+      createdAt?: string;
+      metadata?: Record<string, unknown>;
+    }>
+  > {
     if (!this.client) {
       throw new Error("Supermemory not configured");
     }
@@ -681,12 +693,17 @@ class SupermemoryService {
         },
       );
 
-      return documents.map((doc) => ({
+      // Note: folderId filtering would require additional metadata
+      // Currently using basic filtering - enhance when metadata is available
+      const filteredDocs = folderId
+        ? documents.filter((doc) => doc.id.includes(folderId))
+        : documents;
+
+      return filteredDocs.map((doc) => ({
         id: doc.id,
-        title: doc.title,
+        title: doc.title || "Untitled",
         type: doc.type,
         createdAt: doc.createdAt,
-        updatedAt: doc.updatedAt,
       }));
     } catch (error) {
       console.error("Failed to list Google Drive documents:", error);
@@ -730,22 +747,108 @@ class SupermemoryService {
     try {
       // Trigger import for this container
       await this.client.connections.import("google-drive", {
-        containerTags: [...ContainerTags.documentation(sourceHash)],
+        containerTags: [ContainerTags.documentation(sourceHash)[0]],
       });
 
       // Wait for processing (polling)
       await this.waitForProcessing(sourceHash);
 
-      // Get imported document IDs
-      const documents = await this.listGoogleDriveFiles(sourceHash);
+      // Get imported document IDs from the shared documentation container
+      const memories = await this.generateTopicHierarchy(sourceHash);
 
       return {
-        documentIds: documents.map((d) => d.id),
+        documentIds: memories.map((m) => m.id),
         status: "completed",
       };
     } catch (error) {
       console.error("Failed to import from Google Drive:", error);
       throw new Error("Failed to import from Google Drive");
+    }
+  }
+
+  /**
+   * List all Google Drive connections for a user
+   */
+  async listGoogleDriveConnections(userId: string) {
+    if (!this.client) {
+      throw new Error("Supermemory not configured");
+    }
+
+    try {
+      const connections = await this.client.connections.list({
+        containerTags: [userId],
+      });
+
+      return connections.filter((conn) => conn.provider === "google-drive");
+    } catch (error) {
+      console.error("Failed to list Google Drive connections:", error);
+      return [];
+    }
+  }
+
+  /**
+   * Get specific Google Drive connection by source hash
+   */
+  async getGoogleDriveConnection(sourceHash: string) {
+    if (!this.client) {
+      throw new Error("Supermemory not configured");
+    }
+
+    try {
+      const connection = await this.client.connections.getByTags(
+        "google-drive",
+        {
+          containerTags: [ContainerTags.documentation(sourceHash)[0]],
+        },
+      );
+
+      return connection;
+    } catch (error) {
+      console.error("Failed to get Google Drive connection:", error);
+      return null;
+    }
+  }
+
+  /**
+   * Delete Google Drive connection
+   */
+  async deleteGoogleDriveConnection(sourceHash: string) {
+    if (!this.client) {
+      throw new Error("Supermemory not configured");
+    }
+
+    try {
+      const result = await this.client.connections.deleteByProvider(
+        "google-drive",
+        {
+          containerTags: [ContainerTags.documentation(sourceHash)[0]],
+        },
+      );
+
+      return result;
+    } catch (error) {
+      console.error("Failed to delete Google Drive connection:", error);
+      throw new Error("Failed to delete Google Drive connection");
+    }
+  }
+
+  /**
+   * Trigger manual sync for Google Drive connection
+   */
+  async syncGoogleDrive(sourceHash: string) {
+    if (!this.client) {
+      throw new Error("Supermemory not configured");
+    }
+
+    try {
+      await this.client.connections.import("google-drive", {
+        containerTags: [ContainerTags.documentation(sourceHash)[0]],
+      });
+
+      return { status: "sync_initiated" };
+    } catch (error) {
+      console.error("Failed to sync Google Drive:", error);
+      throw new Error("Failed to sync Google Drive");
     }
   }
 
@@ -785,20 +888,52 @@ class SupermemoryService {
       console.log(
         `🔍 Searching for documentation in container: ${containerTag}`,
       );
+      console.log(`📋 Using sourceHash: ${sourceHash}`);
 
-      // Search for all documentation memories in the shared container
-      const results = await this.client.search.memories({
-        q: "documentation_page", // Match the type we store
-        containerTag: containerTag,
-        limit: 100, // API max is 100
-      });
+      // Try multiple search strategies with retry logic
+      let results;
+      const maxRetries = 3;
+
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        console.log(`📡 Search attempt ${attempt}/${maxRetries}`);
+
+        // Strategy 1: Search with specific query
+        results = await this.client.search.memories({
+          q: "documentation_page",
+          containerTag: containerTag,
+          limit: 100,
+        });
+
+        // Strategy 2: If nothing found, try with broader query
+        if (!results.results || results.results.length === 0) {
+          console.log("⚠️ Trying broader query...");
+          results = await this.client.search.memories({
+            q: " ", // Minimal query (space required by API)
+            containerTag: containerTag,
+            limit: 100,
+          });
+        }
+
+        if (results.results && results.results.length > 0) {
+          console.log(
+            `✅ Found ${results.results.length} memories on attempt ${attempt}`,
+          );
+          break;
+        }
+
+        // If not the last attempt, wait before retrying
+        if (attempt < maxRetries) {
+          console.log(`⏳ No results, waiting 1.5s before retry...`);
+          await new Promise((resolve) => setTimeout(resolve, 1500));
+        }
+      }
 
       console.log(
-        `📚 Found ${results.results?.length || 0} memories in Supermemory`,
+        `📚 Final result: ${results?.results?.length || 0} memories in Supermemory`,
       );
 
       return (
-        results.results?.map((result) => {
+        results?.results?.map((result) => {
           const memory = result.memory;
           if (typeof memory === "string") {
             return {

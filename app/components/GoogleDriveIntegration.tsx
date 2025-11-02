@@ -19,14 +19,32 @@ export default function GoogleDriveIntegration() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Check if user has connected Google Drive
-    // This would typically check localStorage or make an API call
-    const savedConnection = localStorage.getItem(
-      `gdrive_connection_${userProfile.email}`,
-    );
-    if (savedConnection) {
-      setStatus(JSON.parse(savedConnection));
-    }
+    // Check connection status from API
+    const checkStatus = async () => {
+      if (!userProfile.email) return;
+
+      try {
+        const response = await fetch(
+          `/api/integrations/google-drive/connections?userId=${encodeURIComponent(userProfile.email)}`,
+        );
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.connections && data.connections.length > 0) {
+            const conn = data.connections[0];
+            setStatus({
+              connected: true,
+              email: conn.email,
+              connectedAt: conn.createdAt,
+            });
+          }
+        }
+      } catch (err) {
+        console.error("Failed to check connection status:", err);
+      }
+    };
+
+    checkStatus();
   }, [userProfile.email]);
 
   const handleConnect = async () => {
@@ -66,7 +84,7 @@ export default function GoogleDriveIntegration() {
         const checkWindow = setInterval(() => {
           if (authWindow?.closed) {
             clearInterval(checkWindow);
-            checkConnectionStatus(data.connectionId);
+            checkConnectionStatus();
           }
         }, 1000);
       }
@@ -81,30 +99,62 @@ export default function GoogleDriveIntegration() {
     }
   };
 
-  const checkConnectionStatus = async (connectionId: string) => {
+  const checkConnectionStatus = async () => {
     try {
-      // Check if connection was successful
-      // In practice, this would poll an API endpoint
-      setTimeout(() => {
-        const newStatus = {
-          connected: true,
-          email: userProfile.email,
-          connectedAt: new Date().toISOString(),
-        };
-        setStatus(newStatus);
-        localStorage.setItem(
-          `gdrive_connection_${userProfile.email}`,
-          JSON.stringify(newStatus),
-        );
-      }, 2000);
-    } catch (err) {
+      // Poll the API to check if connection was successful
+      const response = await fetch(
+        `/api/integrations/google-drive/connections?userId=${encodeURIComponent(userProfile.email)}`,
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.connections && data.connections.length > 0) {
+          const conn = data.connections[0];
+          setStatus({
+            connected: true,
+            email: conn.email,
+            connectedAt: conn.createdAt,
+          });
+        }
+      }
+    } catch {
       setError("Failed to verify connection");
     }
   };
 
-  const handleDisconnect = () => {
-    setStatus({ connected: false });
-    localStorage.removeItem(`gdrive_connection_${userProfile.email}`);
+  const handleDisconnect = async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      // Get the source hash from the connection
+      const connectionsResponse = await fetch(
+        `/api/integrations/google-drive/connections?userId=${encodeURIComponent(userProfile.email)}`,
+      );
+
+      if (connectionsResponse.ok) {
+        const data = await connectionsResponse.json();
+        if (data.connections && data.connections.length > 0) {
+          const connectionId = data.connections[0].id;
+
+          // Delete the connection
+          const deleteResponse = await fetch(
+            `/api/integrations/google-drive/connections?sourceHash=${connectionId}`,
+            { method: "DELETE" },
+          );
+
+          if (deleteResponse.ok) {
+            setStatus({ connected: false });
+          } else {
+            throw new Error("Failed to disconnect");
+          }
+        }
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to disconnect");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -152,14 +202,17 @@ export default function GoogleDriveIntegration() {
                   {new Date(status.connectedAt).toLocaleDateString()}
                 </p>
               )}
-              <Button
-                color="danger"
-                variant="flat"
-                startContent={<X size={18} />}
-                onPress={handleDisconnect}
-              >
-                Disconnect
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  color="danger"
+                  variant="flat"
+                  startContent={<X size={18} />}
+                  onPress={handleDisconnect}
+                  isDisabled={loading}
+                >
+                  Disconnect
+                </Button>
+              </div>
             </div>
           ) : (
             <div className="space-y-4">

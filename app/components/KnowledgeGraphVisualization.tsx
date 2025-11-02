@@ -142,13 +142,51 @@ export default function KnowledgeGraphVisualization({
       })();
       score += prereqScore * 0.15;
 
-      // Include in learning path if score exceeds threshold (0.4)
-      // AND prerequisites are met
-      const prereqsMet = prereqScore >= 0.5; // At least 50% of prereqs completed
-      if (score >= 0.4 && prereqsMet) {
+      // Log scoring details for debugging
+      if (process.env.NODE_ENV === "development") {
+        console.log(`📊 Article: ${article.title}`);
+        console.log(
+          `  - Difficulty: ${difficultyScore.toFixed(2)} (${(difficultyScore * 0.35).toFixed(2)} weighted)`,
+        );
+        console.log(
+          `  - Interest: ${interestScore.toFixed(2)} (${(interestScore * 0.25).toFixed(2)} weighted)`,
+        );
+        console.log(
+          `  - Goal: ${goalScore.toFixed(2)} (${(goalScore * 0.25).toFixed(2)} weighted)`,
+        );
+        console.log(
+          `  - Prereq: ${prereqScore.toFixed(2)} (${(prereqScore * 0.15).toFixed(2)} weighted)`,
+        );
+        console.log(`  - Total Score: ${score.toFixed(2)}`);
+      }
+
+      // Include in learning path based on score
+      // For fresh courses, allow articles with fewer prerequisites
+      const prereqsMet =
+        prereqScore === 1.0 || // Foundation topics (no prereqs)
+        prereqScore >= 0.5 || // At least 50% of prereqs completed
+        (completedIds.size === 0 && prereqScore >= 0.3); // First-time learners: more lenient
+
+      // Dynamic threshold: lower for beginners or fresh courses
+      const scoreThreshold = completedIds.size === 0 ? 0.35 : 0.4;
+
+      if (score >= scoreThreshold && prereqsMet) {
         learningPathIds.add(article.id);
+        if (process.env.NODE_ENV === "development") {
+          console.log(`  ✅ INCLUDED in learning path`);
+        }
+      } else if (process.env.NODE_ENV === "development") {
+        console.log(
+          `  ❌ EXCLUDED: score=${score.toFixed(2)} (need ≥0.4), prereqsMet=${prereqsMet}`,
+        );
       }
     });
+
+    if (process.env.NODE_ENV === "development") {
+      console.log(
+        `\n📈 Learning Path Summary: ${learningPathIds.size}/${articles.length} articles included`,
+      );
+    }
 
     const nodes: GraphNode[] = articles.map((article) => ({
       id: article.id,
