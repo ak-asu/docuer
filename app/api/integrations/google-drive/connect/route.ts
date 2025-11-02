@@ -1,12 +1,11 @@
 // API route for connecting Google Drive
 import { NextRequest, NextResponse } from "next/server";
 import { supermemoryService } from "@/lib/services/supermemory";
-import { generateSourceHash } from "@/lib/utils/hash";
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { userId, folderUrl } = body;
+    const { userId } = body;
 
     if (!userId) {
       return NextResponse.json(
@@ -15,34 +14,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!folderUrl) {
-      return NextResponse.json(
-        { error: "Folder URL is required" },
-        { status: 400 },
-      );
-    }
-
-    // Generate source hash from Google Drive folder
-    const sourceHash = generateSourceHash({
-      type: "google-drive",
-      identifier: folderUrl,
-    });
-
     // Get redirect URL for OAuth callback
     const redirectUrl = `${request.nextUrl.origin}/api/integrations/google-drive/callback`;
 
-    // Connect to Google Drive
+    // Connect to Google Drive (using userId as container tag)
     const connection = await supermemoryService.connectGoogleDrive(
-      sourceHash,
-      redirectUrl,
       userId,
+      redirectUrl,
     );
 
     return NextResponse.json({
       success: true,
       authLink: connection.authLink,
       connectionId: connection.connectionId,
-      sourceHash,
       expiresIn: connection.expiresIn,
     });
   } catch (error) {

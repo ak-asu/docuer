@@ -5,17 +5,17 @@ import { supermemoryService } from "@/lib/services/supermemory";
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { sourceHash } = body;
+    const { userId } = body;
 
-    if (!sourceHash) {
+    if (!userId) {
       return NextResponse.json(
-        { error: "Source hash is required" },
+        { error: "User ID is required" },
         { status: 400 },
       );
     }
 
     // Import files from Google Drive
-    const result = await supermemoryService.importFromGoogleDrive(sourceHash);
+    const result = await supermemoryService.importFromGoogleDrive(userId);
 
     return NextResponse.json({
       success: true,

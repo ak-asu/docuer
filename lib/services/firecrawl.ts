@@ -22,42 +22,62 @@ class FirecrawlService {
   /**
    * Scrape a single URL and return structured content
    */
-  async scrapeUrl(url: string): Promise<ScrapedContent> {
+  async scrapeUrl(url: string, retries: number = 2): Promise<ScrapedContent> {
     if (!this.client) {
       throw new Error(
         "Firecrawl is not configured. Please add FIRECRAWL_API_KEY to your environment variables.",
       );
     }
 
-    try {
-      const response = await this.client.scrape(url, {
-        formats: ["markdown", "html"],
-        // onlyMainContent: true,
-      });
+    for (let attempt = 1; attempt <= retries + 1; attempt++) {
+      try {
+        console.log(`🌐 Scraping ${url} (attempt ${attempt}/${retries + 1})`);
 
-      return {
-        url,
-        title: response.metadata?.title || "Untitled",
-        content: response.markdown || "",
-        markdown: response.markdown || "",
-        html: response.html,
-        links: response.links || [],
-        metadata: {
-          description: response.metadata?.description as string | undefined,
-          keywords: Array.isArray(response.metadata?.keywords)
-            ? response.metadata.keywords
-            : typeof response.metadata?.keywords === "string"
+        const response = await this.client.scrape(url, {
+          formats: ["markdown", "html"],
+          timeout: 120000, // Increase timeout to 120 seconds
+          // onlyMainContent: true,
+        });
+
+        return {
+          url,
+          title: response.metadata?.title || "Untitled",
+          content: response.markdown || "",
+          markdown: response.markdown || "",
+          html: response.html,
+          links: response.links || [],
+          metadata: {
+            description: response.metadata?.description as string | undefined,
+            keywords: Array.isArray(response.metadata?.keywords)
               ? response.metadata.keywords
-                  .split(",")
-                  .map((k: string) => k.trim())
-              : undefined,
-          author: response.metadata?.author as string | undefined,
-        },
-      };
-    } catch (error) {
-      console.error("Firecrawl scrape error:", error);
-      throw new Error(`Failed to scrape URL: ${url}`);
+              : typeof response.metadata?.keywords === "string"
+                ? response.metadata.keywords
+                    .split(",")
+                    .map((k: string) => k.trim())
+                : undefined,
+            author: response.metadata?.author as string | undefined,
+          },
+        };
+      } catch (error) {
+        console.error(
+          `Firecrawl scrape error (attempt ${attempt}/${retries + 1}):`,
+          error,
+        );
+
+        if (attempt <= retries) {
+          const waitTime = attempt * 2000; // 2s, 4s
+          console.log(`⏳ Retrying in ${waitTime / 1000}s...`);
+          await new Promise((resolve) => setTimeout(resolve, waitTime));
+        } else {
+          // Last attempt failed, throw error
+          throw error;
+        }
+      }
     }
+
+    throw new Error(
+      `Failed to scrape URL after ${retries + 1} attempts: ${url}`,
+    );
   }
 
   /**

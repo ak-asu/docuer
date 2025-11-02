@@ -60,6 +60,8 @@ export default function CoursesPage() {
   const [googleDriveUrl, setGoogleDriveUrl] = useState("");
   const [selectedDriveFiles, setSelectedDriveFiles] = useState<string[]>([]);
   const [showFilePickerDialog, setShowFilePickerDialog] = useState(false);
+  const [showDummyFilePickerDialog, setShowDummyFilePickerDialog] =
+    useState(false);
   const [sourceType, setSourceType] = useState<
     "url" | "gdrive" | "url-advanced"
   >("url");
@@ -157,6 +159,11 @@ export default function CoursesPage() {
       return;
     }
     setShowFilePickerDialog(true);
+  };
+
+  const handleSelectFilesFromDriveDummy = () => {
+    // Open file picker with dummy data - no connection check needed
+    setShowDummyFilePickerDialog(true);
   };
 
   const handleCreateCourse = async () => {
@@ -674,7 +681,7 @@ export default function CoursesPage() {
                                 key="gdrive-input"
                                 className="space-y-3"
                               >
-                                <div className="flex items-center gap-3">
+                                <div className="flex items-center gap-3 flex-wrap">
                                   <Button
                                     color="primary"
                                     variant="flat"
@@ -682,6 +689,14 @@ export default function CoursesPage() {
                                     size="lg"
                                   >
                                     Select Files from Google Drive
+                                  </Button>
+                                  <Button
+                                    color="warning"
+                                    variant="bordered"
+                                    onPress={handleSelectFilesFromDriveDummy}
+                                    size="lg"
+                                  >
+                                    Try with Dummy Data
                                   </Button>
                                   {selectedDriveFiles.length > 0 && (
                                     <span className="text-sm text-gray-600">
@@ -693,7 +708,8 @@ export default function CoursesPage() {
                                 <p className="text-sm text-gray-600">
                                   Connect your Google Drive in the profile page
                                   first, then select specific documents to
-                                  create a course
+                                  create a course. Or use dummy data to test the
+                                  flow.
                                 </p>
                               </motion.div>
                             )}
@@ -779,6 +795,16 @@ export default function CoursesPage() {
             setSelectedDriveFiles(fileIds);
             setShowFilePickerDialog(false);
           }}
+        />
+
+        <GoogleDriveFilePicker
+          isOpen={showDummyFilePickerDialog}
+          onClose={() => setShowDummyFilePickerDialog(false)}
+          onSelectFiles={(fileIds) => {
+            setSelectedDriveFiles(fileIds);
+            setShowDummyFilePickerDialog(false);
+          }}
+          useDummyData={true}
         />
 
         {/* Notification Toast */}

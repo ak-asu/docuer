@@ -8,11 +8,11 @@ import { supermemoryService } from "@/lib/services/supermemory";
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { sourceHash } = body;
+    const { userId } = body;
 
-    if (!sourceHash) {
+    if (!userId) {
       return NextResponse.json(
-        { error: "Source hash is required" },
+        { error: "User ID is required" },
         { status: 400 },
       );
     }
@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const result = await supermemoryService.syncGoogleDrive(sourceHash);
+    const result = await supermemoryService.syncGoogleDrive(userId);
 
     return NextResponse.json({
       success: true,

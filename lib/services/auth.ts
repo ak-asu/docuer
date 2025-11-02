@@ -19,7 +19,7 @@ export const USERS: User[] = [
   {
     id: "user-alice",
     name: "Alice Johnson",
-    email: "alice@example.com",
+    email: "dc00lk1d786@gmail.com",
     password: "alice123",
     profile: {
       level: "beginner",

@@ -400,11 +400,50 @@ export default function CourseShortPage() {
             label="In-Depth"
             onClick={() => {
               if (relatedArticles.length > 0) {
-                const inDepthArticle = relatedArticles[0];
+                const difficultyOrder = {
+                  beginner: 1,
+                  intermediate: 2,
+                  advanced: 3,
+                };
+                const currentDifficulty =
+                  difficultyOrder[
+                    currentArticle.difficulty as keyof typeof difficultyOrder
+                  ] || 2;
+
+                const inDepthArticle =
+                  relatedArticles
+                    .filter((a) => {
+                      const articleDifficulty =
+                        difficultyOrder[
+                          a.difficulty as keyof typeof difficultyOrder
+                        ] || 2;
+                      return articleDifficulty > currentDifficulty;
+                    })
+                    .sort((a, b) => {
+                      const aDiff =
+                        difficultyOrder[
+                          a.difficulty as keyof typeof difficultyOrder
+                        ] || 2;
+                      const bDiff =
+                        difficultyOrder[
+                          b.difficulty as keyof typeof difficultyOrder
+                        ] || 2;
+                      return aDiff - bDiff;
+                    })[0] || relatedArticles[0];
+
                 const index = courseArticles.findIndex(
                   (a) => a.id === inDepthArticle.id,
                 );
-                if (index !== -1) setCurrentArticleIndex(index);
+                if (index !== -1) {
+                  setCurrentArticleIndex(index);
+                  if (courseId) {
+                    window.history.replaceState(
+                      null,
+                      "",
+                      `/courses/${courseId}/${inDepthArticle.id}`,
+                    );
+                  }
+                }
               }
             }}
           />

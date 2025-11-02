@@ -78,6 +78,17 @@ export default function OnboardingPage() {
     }
   };
 
+  const handleSkip = () => {
+    setOnboardingCompleted(true);
+    updateUserProfile({
+      name: "Learner",
+      level: "intermediate",
+      learningGoals: [],
+      interests: [],
+    });
+    router.push("/courses");
+  };
+
   const toggleGoal = (goal: string) => {
     if (learningGoals.includes(goal)) {
       setLearningGoals(learningGoals.filter((g) => g !== goal));
@@ -286,13 +297,20 @@ export default function OnboardingPage() {
                   </RadioGroup>
                 )}
 
-                <div className="flex justify-between mt-8">
+                <div className="flex justify-between items-center mt-8">
                   <Button
                     variant="flat"
                     onPress={handleBack}
                     isDisabled={currentStep === 0}
                   >
                     Back
+                  </Button>
+                  <Button
+                    variant="light"
+                    onPress={handleSkip}
+                    className="text-gray-600"
+                  >
+                    Skip
                   </Button>
                   <Button
                     color="primary"

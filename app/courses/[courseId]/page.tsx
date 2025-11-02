@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import {
@@ -28,7 +28,9 @@ export default function CourseDetailPage() {
   const params = useParams();
   const router = useRouter();
   const courseId = params?.courseId as string;
-  const { courses, articles, onboardingCompleted } = useStore();
+  const { courses, articles, onboardingCompleted, userProfile } = useStore();
+  const [learningPath, setLearningPath] = useState<string[]>([]);
+  const [isLoadingPath, setIsLoadingPath] = useState(false);
 
   useEffect(() => {
     const currentUser = authService.getCurrentUser();
@@ -47,6 +49,42 @@ export default function CourseDetailPage() {
   const completedArticles = courseArticles.filter((a) => a.completed);
   const nextArticle =
     courseArticles.find((a) => !a.completed) || courseArticles[0];
+
+  useEffect(() => {
+    async function fetchLearningPath() {
+      if (!courseId || !userProfile || courseArticles.length === 0) return;
+
+      setIsLoadingPath(true);
+      try {
+        const response = await fetch("/api/courses/learning-path", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            courseId,
+            userProfile: {
+              level: userProfile.level,
+              interests: userProfile.interests,
+              learningGoals: userProfile.learningGoals,
+            },
+          }),
+        });
+
+        const data = await response.json();
+        if (data.success && data.learningPath) {
+          setLearningPath(data.learningPath);
+          console.log(
+            `✅ Personalized learning path: ${data.learningPath.length} articles`,
+          );
+        }
+      } catch (error) {
+        console.error("Failed to fetch learning path:", error);
+      } finally {
+        setIsLoadingPath(false);
+      }
+    }
+
+    fetchLearningPath();
+  }, [courseId, userProfile, courseArticles.length]);
 
   if (!course) {
     return (
@@ -225,6 +263,8 @@ export default function CourseDetailPage() {
               <KnowledgeGraphVisualization
                 articles={courseArticles}
                 courseId={courseId}
+                learningPath={learningPath}
+                isLoadingPath={isLoadingPath}
                 onNodeClick={(articleId) =>
                   router.push(`/courses/${courseId}/${articleId}`)
                 }

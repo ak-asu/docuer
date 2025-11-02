@@ -55,11 +55,11 @@ export async function GET(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const sourceHash = searchParams.get("sourceHash");
+    const userId = searchParams.get("userId");
 
-    if (!sourceHash) {
+    if (!userId) {
       return NextResponse.json(
-        { error: "Source hash is required" },
+        { error: "User ID is required" },
         { status: 400 },
       );
     }
@@ -71,8 +71,7 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    const result =
-      await supermemoryService.deleteGoogleDriveConnection(sourceHash);
+    const result = await supermemoryService.deleteGoogleDriveConnection(userId);
 
     return NextResponse.json({
       success: true,

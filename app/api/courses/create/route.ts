@@ -215,6 +215,46 @@ export async function POST(request: NextRequest) {
         await neo4jService.createTopics(courseId, topics);
         await neo4jService.createArticles(articles);
         console.log("✅ Knowledge graph created successfully in Neo4j");
+
+        console.log("Populating related articles from Neo4j...");
+        const articlesWithRelations = await Promise.all(
+          articles.map(async (a) => {
+            const relatedArticleIds = await neo4jService.getRelatedArticles(
+              a.id,
+              5,
+            );
+            const prerequisites = a.prerequisites || [];
+            return {
+              id: a.id,
+              title: a.title,
+              content: a.content,
+              courseId: a.courseId,
+              duration: a.duration,
+              difficulty: a.difficulty,
+              completed: false,
+              bookmarked: false,
+              relatedArticles: relatedArticleIds,
+              prerequisites,
+            };
+          }),
+        );
+        console.log("✅ Related articles populated from Neo4j");
+
+        return NextResponse.json({
+          success: true,
+          course: {
+            id: courseId,
+            title,
+            description: description || "",
+            category: category || "General",
+            totalArticles: articlesWithRelations.length,
+            completedArticles: 0,
+            progress: 0,
+            createdAt: new Date().toISOString(),
+          },
+          articles: articlesWithRelations,
+          topics,
+        });
       } catch (error) {
         console.error("❌ Failed to create knowledge graph in Neo4j:", error);
       }
@@ -222,7 +262,7 @@ export async function POST(request: NextRequest) {
       console.log("⚠️ Neo4j not configured - data stored in client state only");
     }
 
-    // Return the course data
+    // Return the course data (fallback if Neo4j failed)
     return NextResponse.json({
       success: true,
       course: {
@@ -245,6 +285,7 @@ export async function POST(request: NextRequest) {
         completed: false,
         bookmarked: false,
         relatedArticles: [],
+        prerequisites: a.prerequisites || [],
       })),
       topics,
     });

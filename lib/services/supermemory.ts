@@ -630,13 +630,9 @@ class SupermemoryService {
 
   /**
    * Connect user's Google Drive to Supermemory
-   * Files will be stored in SHARED container for memory optimization
+   * Uses user-specific container tags as per Supermemory docs
    */
-  async connectGoogleDrive(
-    sourceHash: string,
-    redirectUrl: string,
-    userId: string,
-  ) {
+  async connectGoogleDrive(userId: string, redirectUrl: string) {
     if (!this.client) {
       throw new Error("Supermemory not configured");
     }
@@ -644,7 +640,8 @@ class SupermemoryService {
     try {
       const connection = await this.client.connections.create("google-drive", {
         redirectUrl,
-        containerTags: [ContainerTags.documentation(sourceHash)[0]],
+        containerTags: [userId, "gdrive-sync"],
+        documentLimit: 3000,
         metadata: {
           source: "google-drive",
           platform: "docuer",
@@ -738,27 +735,23 @@ class SupermemoryService {
    * Import files from Google Drive to Supermemory
    */
   async importFromGoogleDrive(
-    sourceHash: string,
+    userId: string,
   ): Promise<{ documentIds: string[]; status: string }> {
     if (!this.client) {
       throw new Error("Supermemory not configured");
     }
 
     try {
-      // Trigger import for this container
+      // Trigger import for this user's Google Drive
       await this.client.connections.import("google-drive", {
-        containerTags: [ContainerTags.documentation(sourceHash)[0]],
+        containerTags: [userId, "gdrive-sync"],
       });
 
-      // Wait for processing (polling)
-      await this.waitForProcessing(sourceHash);
-
-      // Get imported document IDs from the shared documentation container
-      const memories = await this.generateTopicHierarchy(sourceHash);
-
+      // Return immediately - documents will be imported asynchronously
+      // Users can check status by listing documents later
       return {
-        documentIds: memories.map((m) => m.id),
-        status: "completed",
+        documentIds: [],
+        status: "sync_initiated",
       };
     } catch (error) {
       console.error("Failed to import from Google Drive:", error);
@@ -787,9 +780,9 @@ class SupermemoryService {
   }
 
   /**
-   * Get specific Google Drive connection by source hash
+   * Get specific Google Drive connection by user ID
    */
-  async getGoogleDriveConnection(sourceHash: string) {
+  async getGoogleDriveConnection(userId: string) {
     if (!this.client) {
       throw new Error("Supermemory not configured");
     }
@@ -798,7 +791,7 @@ class SupermemoryService {
       const connection = await this.client.connections.getByTags(
         "google-drive",
         {
-          containerTags: [ContainerTags.documentation(sourceHash)[0]],
+          containerTags: [userId, "gdrive-sync"],
         },
       );
 
@@ -812,7 +805,7 @@ class SupermemoryService {
   /**
    * Delete Google Drive connection
    */
-  async deleteGoogleDriveConnection(sourceHash: string) {
+  async deleteGoogleDriveConnection(userId: string) {
     if (!this.client) {
       throw new Error("Supermemory not configured");
     }
@@ -821,7 +814,7 @@ class SupermemoryService {
       const result = await this.client.connections.deleteByProvider(
         "google-drive",
         {
-          containerTags: [ContainerTags.documentation(sourceHash)[0]],
+          containerTags: [userId, "gdrive-sync"],
         },
       );
 
@@ -835,14 +828,14 @@ class SupermemoryService {
   /**
    * Trigger manual sync for Google Drive connection
    */
-  async syncGoogleDrive(sourceHash: string) {
+  async syncGoogleDrive(userId: string) {
     if (!this.client) {
       throw new Error("Supermemory not configured");
     }
 
     try {
       await this.client.connections.import("google-drive", {
-        containerTags: [ContainerTags.documentation(sourceHash)[0]],
+        containerTags: [userId, "gdrive-sync"],
       });
 
       return { status: "sync_initiated" };
@@ -897,34 +890,42 @@ class SupermemoryService {
       for (let attempt = 1; attempt <= maxRetries; attempt++) {
         console.log(`📡 Search attempt ${attempt}/${maxRetries}`);
 
-        // Strategy 1: Search with specific query
-        results = await this.client.search.memories({
-          q: "documentation_page",
-          containerTag: containerTag,
-          limit: 100,
-        });
-
-        // Strategy 2: If nothing found, try with broader query
-        if (!results.results || results.results.length === 0) {
-          console.log("⚠️ Trying broader query...");
+        try {
+          // Strategy 1: Search with specific query
           results = await this.client.search.memories({
-            q: " ", // Minimal query (space required by API)
+            q: "documentation",
             containerTag: containerTag,
             limit: 100,
           });
-        }
 
-        if (results.results && results.results.length > 0) {
-          console.log(
-            `✅ Found ${results.results.length} memories on attempt ${attempt}`,
+          // Strategy 2: If nothing found, try without query (list all in container)
+          if (!results.results || results.results.length === 0) {
+            console.log("⚠️ Trying query without filter...");
+            results = await this.client.search.memories({
+              q: "",
+              containerTag: containerTag,
+              limit: 100,
+            });
+          }
+
+          if (results.results && results.results.length > 0) {
+            console.log(
+              `✅ Found ${results.results.length} memories on attempt ${attempt}`,
+            );
+            break;
+          }
+        } catch (searchError) {
+          console.error(
+            `Search failed on attempt ${attempt}:`,
+            searchError instanceof Error ? searchError.message : searchError,
           );
-          break;
+          results = { results: [] };
         }
 
         // If not the last attempt, wait before retrying
         if (attempt < maxRetries) {
-          console.log(`⏳ No results, waiting 1.5s before retry...`);
-          await new Promise((resolve) => setTimeout(resolve, 1500));
+          console.log(`⏳ No results, waiting 10s before retry...`);
+          await new Promise((resolve) => setTimeout(resolve, 10000));
         }
       }
 

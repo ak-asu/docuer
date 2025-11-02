@@ -641,6 +641,148 @@ class Neo4jService {
       await session.close();
     }
   }
+
+  /**
+   * Get all articles for a course (no filtering)
+   */
+  async getAllArticlesForCourse(
+    courseId: string,
+  ): Promise<Array<{ id: string; title: string }>> {
+    const session = this.getSession();
+    try {
+      const result = await session.run(
+        `
+        MATCH (c:Course {id: $courseId})-[:CONTAINS]->(a:Article)
+        RETURN a.id as id, a.title as title
+        ORDER BY a.createdAt ASC
+        `,
+        { courseId },
+      );
+
+      return result.records.map((record) => ({
+        id: record.get("id"),
+        title: record.get("title"),
+      }));
+    } finally {
+      await session.close();
+    }
+  }
+
+  /**
+   * Check for dangling nodes in the learning path and create relationships to connect them
+   * A dangling node is one that has no incoming or outgoing relationships to other nodes in the path
+   */
+  async connectDanglingNodes(
+    courseId: string,
+    learningPathIds: string[],
+  ): Promise<void> {
+    if (learningPathIds.length === 0) return;
+
+    const session = this.getSession();
+    try {
+      console.log(
+        `🔗 Checking for dangling nodes in learning path (${learningPathIds.length} nodes)...`,
+      );
+
+      // Find nodes in the learning path that have no connections to other nodes in the path
+      const result = await session.run(
+        `
+        MATCH (a:Article)
+        WHERE a.id IN $learningPathIds
+        
+        // Check if this article has any relationships to other articles in the learning path
+        OPTIONAL MATCH (a)-[r:PREREQUISITE|RELATED_TO]-(other:Article)
+        WHERE other.id IN $learningPathIds
+        
+        WITH a, count(r) as connectionCount
+        WHERE connectionCount = 0
+        
+        RETURN a.id as danglingId, a.title as title
+        `,
+        { learningPathIds },
+      );
+
+      const danglingNodes = result.records.map((record) => ({
+        id: record.get("danglingId"),
+        title: record.get("title"),
+      }));
+
+      if (danglingNodes.length === 0) {
+        console.log("✅ No dangling nodes found in learning path");
+        return;
+      }
+
+      console.log(
+        `⚠️ Found ${danglingNodes.length} dangling nodes:`,
+        danglingNodes.map((n) => n.title),
+      );
+
+      // For each dangling node, find the most similar node in the path and create a RELATED_TO relationship
+      for (const danglingNode of danglingNodes) {
+        // Find the best match based on title similarity
+        const matchResult = await session.run(
+          `
+          MATCH (dangling:Article {id: $danglingId})
+          MATCH (other:Article)
+          WHERE other.id IN $learningPathIds
+            AND other.id <> $danglingId
+            AND NOT EXISTS((dangling)-[:PREREQUISITE|RELATED_TO]-(other))
+          
+          // Calculate similarity score based on word overlap in titles
+          WITH dangling, other,
+            size([word IN split(toLower(dangling.title), ' ') 
+              WHERE word IN split(toLower(other.title), ' ')]) as commonWords,
+            size(split(toLower(dangling.title), ' ')) as danglingWords,
+            size(split(toLower(other.title), ' ')) as otherWords
+          
+          WITH dangling, other, 
+            CASE 
+              WHEN commonWords > 0 THEN toFloat(commonWords) / ((danglingWords + otherWords) / 2.0)
+              ELSE 0.0
+            END as similarity
+          
+          ORDER BY similarity DESC
+          LIMIT 1
+          
+          RETURN other.id as targetId, other.title as targetTitle, similarity
+          `,
+          {
+            danglingId: danglingNode.id,
+            learningPathIds,
+          },
+        );
+
+        if (matchResult.records.length > 0) {
+          const targetId = matchResult.records[0].get("targetId");
+          const targetTitle = matchResult.records[0].get("targetTitle");
+          const similarity = matchResult.records[0].get("similarity");
+
+          // Create bidirectional RELATED_TO relationship
+          await session.run(
+            `
+            MATCH (a1:Article {id: $sourceId})
+            MATCH (a2:Article {id: $targetId})
+            MERGE (a1)-[:RELATED_TO {strength: $strength, type: 'auto-connected', createdAt: datetime()}]->(a2)
+            MERGE (a2)-[:RELATED_TO {strength: $strength, type: 'auto-connected', createdAt: datetime()}]->(a1)
+            `,
+            {
+              sourceId: danglingNode.id,
+              targetId: targetId,
+              strength: Math.max(0.5, similarity),
+            },
+          );
+
+          console.log(
+            `✅ Connected "${danglingNode.title}" → "${targetTitle}" (similarity: ${similarity.toFixed(2)})`,
+          );
+        }
+      }
+
+      console.log("✅ All dangling nodes connected");
+    } finally {
+      await session.close();
+    }
+  }
 }
 
 // Export singleton instance

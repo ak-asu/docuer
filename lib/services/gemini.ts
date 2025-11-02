@@ -679,6 +679,100 @@ Where numbers are 1-based indices from the list above.`;
       return urls.slice(0, Math.min(30, urls.length));
     }
   }
+
+  /**
+   * Select nodes for personalized learning path based on user preferences
+   * Returns array of article IDs that should be included in the learning path
+   */
+  async selectLearningPathNodes(
+    articleTitles: { id: string; title: string }[],
+    userProfile: {
+      level?: string;
+      interests?: string[];
+      learningGoals?: string[];
+    },
+  ): Promise<string[]> {
+    if (!this.client) {
+      throw new Error("Gemini is not configured");
+    }
+
+    if (articleTitles.length === 0) {
+      return [];
+    }
+
+    try {
+      await this.enforceRateLimit();
+
+      const titlesText = articleTitles
+        .map((a, idx) => `${idx + 1}. ${a.title}`)
+        .join("\n");
+
+      const prompt = `You are a learning path curator. Given a list of course topics and a user profile, select which topics should be included in a PERSONALIZED learning path.
+
+User Profile:
+- Experience Level: ${userProfile.level || "intermediate"}
+- Learning Goals: ${userProfile.learningGoals?.join(", ") || "General learning"}
+- Interests: ${userProfile.interests?.join(", ") || "General topics"}
+
+Available Topics:
+${titlesText}
+
+Task: Select the topics that are MOST RELEVANT to this user's profile. Consider:
+1. Match their experience level (don't include too advanced or too basic topics)
+2. Align with their learning goals and interests
+3. Create a coherent learning path (include foundational topics needed for advanced ones)
+4. Aim for 40-70% of total topics (not too few, not all)
+
+Return ONLY a JSON object with this structure:
+{
+  "selectedIndices": [1, 3, 5, 7],
+  "reasoning": "Brief explanation of selection criteria"
+}
+
+The selectedIndices array should contain the numbers (1-based) of the topics to include.`;
+
+      const result = await this.client.models.generateContent({
+        model: GEMINI_MODEL,
+        contents: prompt,
+      });
+
+      const responseText = result.text || "";
+
+      // Extract JSON from response
+      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        console.warn(
+          "Could not parse Gemini learning path response, selecting all nodes",
+        );
+        return articleTitles.map((a) => a.id);
+      }
+
+      const parsed = JSON.parse(jsonMatch[0]);
+      console.log(
+        `🎯 Gemini learning path selection: ${parsed.reasoning || "No reasoning provided"}`,
+      );
+
+      // Convert indices to article IDs
+      const selectedIds = (parsed.selectedIndices || [])
+        .map((idx: number) => articleTitles[idx - 1]?.id)
+        .filter(Boolean);
+
+      // Ensure we have at least some nodes selected
+      if (selectedIds.length === 0) {
+        console.warn("No nodes selected by Gemini, using all nodes");
+        return articleTitles.map((a) => a.id);
+      }
+
+      console.log(
+        `✅ Selected ${selectedIds.length}/${articleTitles.length} topics for learning path`,
+      );
+      return selectedIds;
+    } catch (error) {
+      console.error("Gemini learning path selection error:", error);
+      // Fallback: return all nodes
+      return articleTitles.map((a) => a.id);
+    }
+  }
 }
 
 // Export singleton instance

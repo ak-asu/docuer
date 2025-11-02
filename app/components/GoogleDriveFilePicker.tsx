@@ -26,12 +26,14 @@ interface GoogleDriveFilePickerProps {
   isOpen: boolean;
   onClose: () => void;
   onSelectFiles: (fileIds: string[]) => void;
+  useDummyData?: boolean;
 }
 
 export default function GoogleDriveFilePicker({
   isOpen,
   onClose,
   onSelectFiles,
+  useDummyData = false,
 }: GoogleDriveFilePickerProps) {
   const [files, setFiles] = useState<DriveFile[]>([]);
   const [selectedFileIds, setSelectedFileIds] = useState<Set<string>>(
@@ -52,6 +54,15 @@ export default function GoogleDriveFilePicker({
   const fetchFiles = async (folderId?: string) => {
     setLoading(true);
     try {
+      // If using dummy data, skip API call and use mock data directly
+      if (useDummyData) {
+        // Simulate network delay
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        setFiles(mockDriveFiles);
+        setLoading(false);
+        return;
+      }
+
       // This would call the Google Drive API via your backend
       const response = await fetch(
         `/api/integrations/google-drive/files${folderId ? `?folderId=${folderId}` : ""}`,
@@ -226,9 +237,16 @@ export default function GoogleDriveFilePicker({
       <ModalContent>
         <ModalHeader>
           <div className="flex flex-col gap-2 w-full">
-            <h2 className="text-2xl font-bold">
-              Select Documents from Google Drive
-            </h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-2xl font-bold">
+                Select Documents from Google Drive
+              </h2>
+              {useDummyData && (
+                <span className="text-xs px-2 py-1 bg-yellow-100 text-yellow-800 rounded-full">
+                  Demo Mode
+                </span>
+              )}
+            </div>
             <p className="text-sm text-gray-600">
               Choose documents to include in your course
             </p>

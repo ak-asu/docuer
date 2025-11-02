@@ -44,7 +44,29 @@ export default function GoogleDriveIntegration() {
       }
     };
 
-    checkStatus();
+    // Check for OAuth callback success
+    const urlParams = new URLSearchParams(window.location.search);
+    const gdriveConnected = urlParams.get("gdrive_connected");
+    const gdriveError = urlParams.get("gdrive_error");
+
+    if (gdriveConnected === "true") {
+      // Remove connecting flag
+      localStorage.removeItem("gdrive_connecting");
+      // Check status after successful callback
+      checkStatus();
+      // Clean up URL parameters
+      window.history.replaceState({}, document.title, window.location.pathname);
+    } else if (gdriveError) {
+      setError(
+        decodeURIComponent(gdriveError) || "Failed to connect Google Drive",
+      );
+      localStorage.removeItem("gdrive_connecting");
+      // Clean up URL parameters
+      window.history.replaceState({}, document.title, window.location.pathname);
+    } else {
+      // Normal status check
+      checkStatus();
+    }
   }, [userProfile.email]);
 
   const handleConnect = async () => {
@@ -68,25 +90,17 @@ export default function GoogleDriveIntegration() {
       const data = await response.json();
 
       if (data.authLink) {
-        // Open OAuth page in new window
-        const width = 600;
-        const height = 700;
-        const left = window.screen.width / 2 - width / 2;
-        const top = window.screen.height / 2 - height / 2;
-
-        const authWindow = window.open(
-          data.authLink,
-          "Google Drive Authorization",
-          `width=${width},height=${height},left=${left},top=${top}`,
+        // Store connection attempt in localStorage for callback handling
+        localStorage.setItem(
+          "gdrive_connecting",
+          JSON.stringify({
+            userId: userProfile.email,
+            timestamp: Date.now(),
+          }),
         );
 
-        // Poll for window close or success
-        const checkWindow = setInterval(() => {
-          if (authWindow?.closed) {
-            clearInterval(checkWindow);
-            checkConnectionStatus();
-          }
-        }, 1000);
+        // Redirect to OAuth page directly (avoids COOP issues)
+        window.location.href = data.authLink;
       }
     } catch (err) {
       setError(
@@ -94,31 +108,7 @@ export default function GoogleDriveIntegration() {
           ? err.message
           : "Failed to connect to Google Drive",
       );
-    } finally {
       setLoading(false);
-    }
-  };
-
-  const checkConnectionStatus = async () => {
-    try {
-      // Poll the API to check if connection was successful
-      const response = await fetch(
-        `/api/integrations/google-drive/connections?userId=${encodeURIComponent(userProfile.email)}`,
-      );
-
-      if (response.ok) {
-        const data = await response.json();
-        if (data.connections && data.connections.length > 0) {
-          const conn = data.connections[0];
-          setStatus({
-            connected: true,
-            email: conn.email,
-            connectedAt: conn.createdAt,
-          });
-        }
-      }
-    } catch {
-      setError("Failed to verify connection");
     }
   };
 
@@ -127,28 +117,16 @@ export default function GoogleDriveIntegration() {
     setError(null);
 
     try {
-      // Get the source hash from the connection
-      const connectionsResponse = await fetch(
+      // Delete the connection using userId
+      const deleteResponse = await fetch(
         `/api/integrations/google-drive/connections?userId=${encodeURIComponent(userProfile.email)}`,
+        { method: "DELETE" },
       );
 
-      if (connectionsResponse.ok) {
-        const data = await connectionsResponse.json();
-        if (data.connections && data.connections.length > 0) {
-          const connectionId = data.connections[0].id;
-
-          // Delete the connection
-          const deleteResponse = await fetch(
-            `/api/integrations/google-drive/connections?sourceHash=${connectionId}`,
-            { method: "DELETE" },
-          );
-
-          if (deleteResponse.ok) {
-            setStatus({ connected: false });
-          } else {
-            throw new Error("Failed to disconnect");
-          }
-        }
+      if (deleteResponse.ok) {
+        setStatus({ connected: false });
+      } else {
+        throw new Error("Failed to disconnect");
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to disconnect");

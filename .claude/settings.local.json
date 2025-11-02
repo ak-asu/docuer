@@ -6,7 +6,9 @@
       "Bash(npm install:*)",
       "Bash(dir /s /b node_modulessupermemory*.d.ts 2)",
       "Bash(nul)",
-      "Bash(dir:*)"
+      "Bash(dir:*)",
+      "Bash(cat:*)",
+      "Bash(npx tsc:*)"
     ],
     "deny": [],
     "ask": []

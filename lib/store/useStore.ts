@@ -42,6 +42,7 @@ export interface Article {
   completed: boolean;
   bookmarked: boolean;
   relatedArticles: string[];
+  prerequisites?: string[];
 }
 
 export interface QuizQuestion {

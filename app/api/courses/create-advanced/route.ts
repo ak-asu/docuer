@@ -77,13 +77,16 @@ export async function POST(request: NextRequest) {
       if (newContent.length === 0 && !docsExist) {
         return NextResponse.json(
           {
-            error: "Failed to scrape selected pages. Please try again.",
+            error:
+              "Failed to scrape selected pages. The pages may be taking too long to load or are unavailable. Please try selecting fewer pages or try again later.",
           },
           { status: 400 },
         );
       }
 
-      console.log(`Scraped ${newContent.length} new pages`);
+      console.log(
+        `Scraped ${newContent.length}/${urlsToCrawl.length} new pages successfully`,
+      );
 
       if (supermemoryService.isConfigured() && newContent.length > 0) {
         console.log("Uploading new documentation to Supermemory...");
@@ -170,6 +173,45 @@ export async function POST(request: NextRequest) {
         await neo4jService.createTopics(courseId, topics);
         await neo4jService.createArticles(articles);
         console.log("✅ Knowledge graph created successfully in Neo4j");
+
+        console.log("Populating related articles from Neo4j...");
+        const articlesWithRelations = await Promise.all(
+          articles.map(async (a) => {
+            const relatedArticleIds = await neo4jService.getRelatedArticles(
+              a.id,
+              5,
+            );
+            const prerequisites = a.prerequisites || [];
+            return {
+              id: a.id,
+              title: a.title,
+              content: a.content,
+              courseId: a.courseId,
+              duration: a.duration,
+              completed: false,
+              bookmarked: false,
+              relatedArticles: relatedArticleIds,
+              prerequisites,
+            };
+          }),
+        );
+        console.log("✅ Related articles populated from Neo4j");
+
+        return NextResponse.json({
+          success: true,
+          course: {
+            id: courseId,
+            title,
+            description: description || "",
+            category: category || "General",
+            totalArticles: articlesWithRelations.length,
+            completedArticles: 0,
+            progress: 0,
+            createdAt: new Date().toISOString(),
+          },
+          articles: articlesWithRelations,
+          topics,
+        });
       } catch (error) {
         console.error("❌ Failed to create knowledge graph in Neo4j:", error);
       }
@@ -198,6 +240,7 @@ export async function POST(request: NextRequest) {
         completed: false,
         bookmarked: false,
         relatedArticles: [],
+        prerequisites: a.prerequisites || [],
       })),
       topics,
     });
