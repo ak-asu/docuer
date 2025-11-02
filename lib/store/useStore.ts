@@ -56,6 +56,8 @@ interface AppState {
   quizQuestions: QuizQuestion[];
   bookmarkedArticles: string[];
   currentArticleIndex: number;
+  isLoading: boolean;
+  error: string | null;
 
   setOnboardingCompleted: (completed: boolean) => void;
   updateUserPreferences: (preferences: Partial<UserPreferences>) => void;
@@ -68,6 +70,14 @@ interface AppState {
   setCurrentArticleIndex: (index: number) => void;
   incrementArticleIndex: () => void;
   decrementArticleIndex: () => void;
+
+  // API integration methods
+  createCourseFromUrl: (url: string, title: string, description: string, category: string) => Promise<void>;
+  generateQuizForArticle: (articleId: string) => Promise<void>;
+  setLoading: (loading: boolean) => void;
+  setError: (error: string | null) => void;
+  addArticles: (articles: Article[]) => void;
+  addQuizQuestions: (questions: QuizQuestion[]) => void;
 }
 
 export const useStore = create<AppState>()(
@@ -248,6 +258,8 @@ export const useStore = create<AppState>()(
       ],
       bookmarkedArticles: [],
       currentArticleIndex: 0,
+      isLoading: false,
+      error: null,
 
       setOnboardingCompleted: (completed) => set({ onboardingCompleted: completed }),
 
@@ -277,27 +289,6 @@ export const useStore = create<AppState>()(
         set((state) => ({
           courses: state.courses.filter((course) => course.id !== id),
         })),
-
-      toggleArticleComplete: (articleId) =>
-        set((state) => {
-          const article = state.articles.find((a) => a.id === articleId);
-          if (!article) return state;
-
-          const wasCompleted = article.completed;
-          const newCompleted = !wasCompleted;
-
-          return {
-            articles: state.articles.map((a) =>
-              a.id === articleId ? { ...a, completed: newCompleted } : a
-            ),
-            userProfile: {
-              ...state.userProfile,
-              completedArticles: wasCompleted
-                ? state.userProfile.completedArticles - 1
-                : state.userProfile.completedArticles + 1,
-            },
-          };
-        }),
 
       toggleArticleBookmark: (articleId) =>
         set((state) => {
@@ -330,6 +321,125 @@ export const useStore = create<AppState>()(
         set((state) => ({
           currentArticleIndex: Math.max(state.currentArticleIndex - 1, 0),
         })),
+
+      // API integration methods
+      setLoading: (loading) => set({ isLoading: loading }),
+
+      setError: (error) => set({ error }),
+
+      addArticles: (articles) =>
+        set((state) => ({
+          articles: [...state.articles, ...articles],
+        })),
+
+      addQuizQuestions: (questions) =>
+        set((state) => ({
+          quizQuestions: [...state.quizQuestions, ...questions],
+        })),
+
+      createCourseFromUrl: async (url, title, description, category) => {
+        set({ isLoading: true, error: null });
+        try {
+          const response = await fetch('/api/courses/create', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ url, title, description, category }),
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to create course');
+          }
+
+          const data = await response.json();
+
+          if (data.success) {
+            // Add course to store
+            set((state) => ({
+              courses: [...state.courses, data.course],
+              articles: [...state.articles, ...data.articles],
+              isLoading: false,
+            }));
+          }
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+          set({ error: errorMessage, isLoading: false });
+          throw error;
+        }
+      },
+
+      generateQuizForArticle: async (articleId) => {
+        set({ isLoading: true, error: null });
+        try {
+          const article = useStore.getState().articles.find((a) => a.id === articleId);
+          if (!article) {
+            throw new Error('Article not found');
+          }
+
+          const response = await fetch('/api/quiz/generate', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ article }),
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to generate quiz');
+          }
+
+          const data = await response.json();
+
+          if (data.success && data.questions) {
+            set((state) => ({
+              quizQuestions: [...state.quizQuestions, ...data.questions],
+              isLoading: false,
+            }));
+          }
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+          set({ error: errorMessage, isLoading: false });
+          throw error;
+        }
+      },
+
+      toggleArticleComplete: (articleId) =>
+        set((state) => {
+          const article = state.articles.find((a) => a.id === articleId);
+          if (!article) return state;
+
+          const wasCompleted = article.completed;
+          const newCompleted = !wasCompleted;
+
+          // Call API to track completion
+          if (newCompleted) {
+            fetch('/api/articles/complete', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                userId: 'user-1', // TODO: Get from auth
+                articleId,
+              }),
+            }).catch((error) => console.error('Failed to track completion:', error));
+          }
+
+          return {
+            articles: state.articles.map((a) =>
+              a.id === articleId ? { ...a, completed: newCompleted } : a
+            ),
+            userProfile: {
+              ...state.userProfile,
+              completedArticles: wasCompleted
+                ? state.userProfile.completedArticles - 1
+                : state.userProfile.completedArticles + 1,
+            },
+          };
+        }),
     }),
     {
       name: 'learning-app-storage',

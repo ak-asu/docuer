@@ -19,16 +19,18 @@ const courseSchema = z.object({
 type CourseFormData = z.infer<typeof courseSchema>;
 
 export default function CoursesPage() {
-  const { courses, addCourse, deleteCourse } = useStore();
+  const { courses, addCourse, deleteCourse, createCourseFromUrl, isLoading, error } = useStore();
   const [selectedTab, setSelectedTab] = useState('existing');
   const [formData, setFormData] = useState<CourseFormData>({
     title: '',
     description: '',
     category: '',
   });
+  const [documentationUrl, setDocumentationUrl] = useState('');
   const [errors, setErrors] = useState<Partial<Record<keyof CourseFormData, string>>>({});
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
+  const [showUrlInput, setShowUrlInput] = useState(false);
 
   const categories = ['Frontend', 'Backend', 'DevOps', 'Data Science', 'Mobile', 'Design', 'Programming'];
 
@@ -46,19 +48,29 @@ export default function CoursesPage() {
     setIsEditModalOpen(true);
   };
 
-  const handleCreateCourse = () => {
+  const handleCreateCourse = async () => {
     try {
       courseSchema.parse(formData);
-      const newCourse = {
-        id: Date.now().toString(),
-        ...formData,
-        progress: 0,
-        totalArticles: 10,
-        completedArticles: 0,
-        createdAt: new Date().toISOString(),
-      };
-      addCourse(newCourse);
+
+      if (showUrlInput && documentationUrl) {
+        // Create course from documentation URL using API
+        await createCourseFromUrl(documentationUrl, formData.title, formData.description, formData.category);
+      } else {
+        // Create manual course (no URL)
+        const newCourse = {
+          id: Date.now().toString(),
+          ...formData,
+          progress: 0,
+          totalArticles: 0,
+          completedArticles: 0,
+          createdAt: new Date().toISOString(),
+        };
+        addCourse(newCourse);
+      }
+
       setFormData({ title: '', description: '', category: '' });
+      setDocumentationUrl('');
+      setShowUrlInput(false);
       setErrors({});
       setSelectedTab('existing');
     } catch (err) {
@@ -251,14 +263,50 @@ export default function CoursesPage() {
                         ))}
                       </Select>
 
+                      <div className="border-t pt-4">
+                        <Button
+                          variant="light"
+                          size="sm"
+                          onPress={() => setShowUrlInput(!showUrlInput)}
+                          className="mb-4"
+                        >
+                          {showUrlInput ? 'Hide' : 'Add'} Documentation URL (AI-powered)
+                        </Button>
+
+                        {showUrlInput && (
+                          <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            exit={{ opacity: 0, height: 0 }}
+                          >
+                            <Input
+                              label="Documentation URL"
+                              placeholder="https://react.dev/learn"
+                              value={documentationUrl}
+                              onChange={(e) => setDocumentationUrl(e.target.value)}
+                              description="We'll automatically scrape and generate learning content from this documentation"
+                              size="lg"
+                            />
+                          </motion.div>
+                        )}
+                      </div>
+
+                      {error && (
+                        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+                          {error}
+                        </div>
+                      )}
+
                       <div className="flex gap-3 pt-4">
                         <Button
                           color="primary"
                           size="lg"
                           onPress={handleCreateCourse}
                           startContent={<Plus size={18} />}
+                          isLoading={isLoading}
+                          isDisabled={isLoading}
                         >
-                          Create Course
+                          {isLoading ? 'Creating...' : 'Create Course'}
                         </Button>
                         <Button
                           variant="flat"
