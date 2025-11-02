@@ -1,12 +1,7 @@
 // API route for chatbot conversations using Supermemory
 import { NextRequest, NextResponse } from "next/server";
 import { supermemoryService } from "@/lib/services/supermemory";
-import { GoogleGenAI } from "@google/genai";
-
-// Initialize Gemini for generating responses
-const genAI = process.env.GEMINI_API_KEY
-  ? new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY })
-  : null;
+import { geminiService } from "@/lib/services/gemini";
 
 interface Message {
   role: "user" | "assistant";
@@ -69,7 +64,7 @@ ${memories
     }
 
     // Generate response using Gemini
-    if (!genAI) {
+    if (!geminiService.isConfigured()) {
       return NextResponse.json({
         success: true,
         reply:
@@ -86,7 +81,7 @@ ${memories
       )
       .join("\n");
 
-    const prompt = `You are a helpful learning assistant for an educational platform called LearnFlow. Your role is to help students with their courses, learning progress, and study-related questions.
+    const prompt = `You are a helpful learning assistant for an educational platform called Docuer. Your role is to help students with their courses, learning progress, and study-related questions.
 
 ${context ? `Here is the user's learning data:\n${context}\n` : ""}
 
@@ -98,11 +93,7 @@ Provide a helpful, friendly, and concise response. If you have access to the use
 
 Keep your response under 150 words and conversational.`;
 
-    const result = await genAI.models.generateContent({
-      model: "gemini-2.0-flash-exp",
-      contents: prompt,
-    });
-    const reply = result.text || "";
+    const reply = await geminiService.generateContent(prompt);
 
     return NextResponse.json({
       success: true,

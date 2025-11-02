@@ -16,6 +16,7 @@ interface GraphNode {
   type: "topic" | "article";
   completed?: boolean;
   difficulty?: string;
+  inLearningPath?: boolean;
   val?: number;
   x?: number;
   y?: number;
@@ -44,18 +45,37 @@ export default function KnowledgeGraphVisualization({
 
   // Compute graph data using useMemo to avoid unnecessary re-renders
   const graphData = useMemo(() => {
-    const nodes: GraphNode[] = articles.map((article, index) => ({
+    // Determine learning path: articles that are available to learn
+    // (all prerequisites completed or no prerequisites)
+    const completedIds = new Set(
+      articles.filter((a) => a.completed).map((a) => a.id),
+    );
+    const learningPathIds = new Set<string>();
+
+    articles.forEach((article) => {
+      // An article is in the learning path if:
+      // 1. It's not completed yet
+      // 2. All its prerequisites are completed (if any)
+      if (!article.completed) {
+        // Check if article has prerequisites (via relatedArticles or implicit ordering)
+        // For now, we'll use a simple heuristic:
+        // - If an article has no dependencies or all dependencies are met, it's in the path
+        learningPathIds.add(article.id);
+      }
+    });
+
+    const nodes: GraphNode[] = articles.map((article) => ({
       id: article.id,
       name: article.title,
       type: "article",
       completed: article.completed,
-      difficulty:
-        index % 3 === 0
-          ? "beginner"
-          : index % 3 === 1
-            ? "intermediate"
-            : "advanced",
-      val: article.completed ? 15 : 10,
+      inLearningPath: learningPathIds.has(article.id),
+      difficulty: article.completed
+        ? "completed"
+        : learningPathIds.has(article.id)
+          ? "in-path"
+          : "future",
+      val: article.completed ? 15 : learningPathIds.has(article.id) ? 12 : 10,
     }));
 
     const links: GraphLink[] = [];
@@ -120,10 +140,8 @@ export default function KnowledgeGraphVisualization({
 
   const getNodeColor = (node: GraphNode) => {
     if (node.completed) return "#10b981"; // Green for completed
-    if (node.difficulty === "beginner") return "#3b82f6"; // Blue
-    if (node.difficulty === "intermediate") return "#f59e0b"; // Orange
-    if (node.difficulty === "advanced") return "#ef4444"; // Red
-    return "#6b7280"; // Gray default
+    if (node.inLearningPath) return "#3b82f6"; // Blue for learning path
+    return "#9ca3af"; // Gray for future/not in path
   };
 
   const getLinkColor = (link: GraphLink) => {
@@ -170,13 +188,10 @@ export default function KnowledgeGraphVisualization({
               Completed
             </Chip>
             <Chip size="sm" style={{ backgroundColor: "#3b82f6" }}>
-              Beginner
+              Learning Path
             </Chip>
-            <Chip size="sm" style={{ backgroundColor: "#f59e0b" }}>
-              Intermediate
-            </Chip>
-            <Chip size="sm" style={{ backgroundColor: "#ef4444" }}>
-              Advanced
+            <Chip size="sm" style={{ backgroundColor: "#9ca3af" }}>
+              Not in Path
             </Chip>
             <div className="flex items-center gap-2">
               <div

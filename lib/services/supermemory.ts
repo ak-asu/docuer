@@ -267,36 +267,10 @@ class SupermemoryService {
   }
 
   /**
-   * Get fallback profile from auth service (for prototype)
+   * Get fallback profile (for prototype)
+   * Note: Returns default profile to avoid circular dependencies
    */
-  private getFallbackProfile(userId: string): UserProfile {
-    try {
-      // Dynamic import to avoid circular dependencies
-      const { authService } = require("./auth");
-      const user = authService.getUserById(userId);
-
-      if (user) {
-        return {
-          interests: user.profile.interests,
-          learningGoals: [],
-          preferredLearningStyle: user.profile.learningStyle,
-          level: user.profile.level,
-          profile: {
-            static: [
-              `Learning level: ${user.profile.level}`,
-              `Preferred learning style: ${user.profile.learningStyle}`,
-              `Background: ${user.profile.background}`,
-              ...user.profile.interests.map(
-                (interest: string) => `Interest: ${interest}`,
-              ),
-            ],
-          },
-        };
-      }
-    } catch (error) {
-      console.error("Error loading auth service:", error);
-    }
-
+  private getFallbackProfile(_userId: string): UserProfile {
     return {
       interests: [],
       learningGoals: [],
@@ -334,7 +308,7 @@ class SupermemoryService {
       title: string;
       content?: string;
       markdown?: string;
-      metadata?: any;
+      metadata?: Record<string, unknown>;
     }>,
     sourceHash: string,
     userId: string,
@@ -419,6 +393,37 @@ class SupermemoryService {
   }
 
   /**
+   * List Google Drive documents for a user
+   * @param userId - User identifier
+   * @param _folderId - Folder ID filter (not yet implemented)
+   */
+  async listGoogleDriveDocuments(userId: string, _folderId?: string | null) {
+    if (!this.client) {
+      throw new Error("Supermemory not configured");
+    }
+
+    try {
+      const documents = await this.client.connections.listDocuments(
+        "google-drive",
+        {
+          containerTags: [userId],
+        },
+      );
+
+      return documents.map((doc) => ({
+        id: doc.id,
+        title: doc.title,
+        type: doc.type,
+        createdAt: doc.createdAt,
+        updatedAt: doc.updatedAt,
+      }));
+    } catch (error) {
+      console.error("Failed to list Google Drive documents:", error);
+      return [];
+    }
+  }
+
+  /**
    * List Google Drive files from connection
    */
   async listGoogleDriveFiles(sourceHash: string) {
@@ -430,7 +435,7 @@ class SupermemoryService {
       const documents = await this.client.connections.listDocuments(
         "google-drive",
         {
-          containerTags: [...ContainerTags.documentation(sourceHash)],
+          containerTags: [ContainerTags.documentation(sourceHash)[0]],
         },
       );
 

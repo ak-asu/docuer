@@ -39,12 +39,18 @@ class CohereService {
         )
         .join("\n\n---\n\n");
 
-      const prompt = `Analyze the following technical documentation and extract key learning topics. For each topic, provide:
+      const prompt = `Analyze the following technical documentation and extract key learning topics that form a KNOWLEDGE WEB. For each topic, provide:
 1. A clear name
 2. A brief description (1-2 sentences)
 3. Importance score (0-1, where 1 is most important)
-4. Prerequisites (list of topic names that should be learned first)
-5. Related topics
+4. Prerequisites (list of topic names that should be learned first) - CAN BE MULTIPLE
+5. Related topics - CAN BE MULTIPLE
+
+Requirements:
+- Topics should form a KNOWLEDGE WEB/NETWORK, not a linear sequence
+- Each topic can have MULTIPLE prerequisites and MULTIPLE related topics
+- A topic can connect to several other topics, creating a graph structure
+- Create rich interconnections between topics where they naturally relate
 
 Documentation:
 ${combinedText}
@@ -55,8 +61,8 @@ Return the response in JSON format as an array of topics:
     "name": "Topic Name",
     "description": "Brief description",
     "importance": 0.9,
-    "prerequisites": ["prerequisite1", "prerequisite2"],
-    "relatedTopics": ["related1", "related2"]
+    "prerequisites": ["prerequisite1", "prerequisite2", "prerequisite3"],
+    "relatedTopics": ["related1", "related2", "related3"]
   }
 ]`;
 

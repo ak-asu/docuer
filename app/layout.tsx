@@ -14,9 +14,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "LearnFlow - Personalized Learning Experience",
+  title: "Docuer - Personalized Learning Experience",
   description:
-    "Manage your learning journey with LearnFlow. Create, edit, and track your courses.",
+    "Manage your learning journey with Docuer. Create, edit, and track your courses.",
 };
 
 export default function RootLayout({

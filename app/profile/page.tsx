@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { useStore } from "@/lib/store/useStore";
 import EditProfileModal from "@/app/components/EditProfileModal";
+import GoogleDriveIntegration from "@/app/components/GoogleDriveIntegration";
 import Layout from "@/app/components/Layout";
 
 export default function UserDetailPage() {
@@ -208,6 +209,11 @@ export default function UserDetailPage() {
               ))}
             </div>
           </motion.div>
+
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">
+            Integrations
+          </h2>
+          <GoogleDriveIntegration />
         </div>
 
         <EditProfileModal

@@ -5,7 +5,6 @@ import { useRouter, useParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardBody, Button } from "@heroui/react";
 import { BookOpen, MessageCircle, Bookmark, Brain, Check } from "lucide-react";
-import ReactMarkdown from "react-markdown";
 import { useStore } from "@/lib/store/useStore";
 import QuizModal from "@/app/components/QuizModal";
 import Layout from "@/app/components/Layout";
@@ -36,13 +35,13 @@ const ActionButton = ({
     >
       <Icon size={24} />
     </div>
-    <span className="text-xs text-white drop-shadow-lg font-medium">
+    <span className="text-xs text-gray-900 dark:text-white drop-shadow-lg font-medium">
       {label}
     </span>
   </motion.button>
 );
 
-export default function ShortsPage() {
+export default function ArticlesPage() {
   const params = useParams();
   const articleId = params?.articleId as string | undefined;
   const router = useRouter();
@@ -74,7 +73,7 @@ export default function ShortsPage() {
 
   useEffect(() => {
     if (currentArticle) {
-      router.replace(`/shorts/${currentArticle.id}`);
+      router.replace(`/articles/${currentArticle.id}`);
     }
   }, [currentArticleIndex, currentArticle, router]);
 
@@ -187,85 +186,14 @@ export default function ShortsPage() {
                     className="prose prose-invert prose-lg max-w-none"
                     aria-label="Article content"
                   >
-                    <div className="text-gray-800 dark:text-white/90 text-lg leading-relaxed markdown-content">
-                      <ReactMarkdown
-                        components={{
-                          p: ({ children }) => (
-                            <p className="mb-4">{children}</p>
-                          ),
-                          h1: ({ children }) => (
-                            <h1 className="text-3xl font-bold mb-4 text-gray-900 dark:text-white">
-                              {children}
-                            </h1>
-                          ),
-                          h2: ({ children }) => (
-                            <h2 className="text-2xl font-bold mb-3 text-gray-900 dark:text-white">
-                              {children}
-                            </h2>
-                          ),
-                          h3: ({ children }) => (
-                            <h3 className="text-xl font-semibold mb-2 text-gray-900 dark:text-white">
-                              {children}
-                            </h3>
-                          ),
-                          ul: ({ children }) => (
-                            <ul className="list-disc list-inside mb-4 space-y-2">
-                              {children}
-                            </ul>
-                          ),
-                          ol: ({ children }) => (
-                            <ol className="list-decimal list-inside mb-4 space-y-2">
-                              {children}
-                            </ol>
-                          ),
-                          li: ({ children }) => (
-                            <li className="text-gray-800 dark:text-gray-100">
-                              {children}
-                            </li>
-                          ),
-                          code: ({ children }) => (
-                            <code className="bg-white/10 dark:bg-gray-700 px-2 py-1 rounded text-sm text-gray-800 dark:text-gray-100">
-                              {children}
-                            </code>
-                          ),
-                          pre: ({ children }) => (
-                            <pre className="bg-white/10 dark:bg-gray-700 p-4 rounded-lg overflow-x-auto mb-4 text-gray-800 dark:text-gray-100">
-                              {children}
-                            </pre>
-                          ),
-                          a: ({ children, href }) => (
-                            <a
-                              href={href}
-                              className="text-blue-600 dark:text-blue-300 hover:text-blue-800 underline"
-                              target="_blank"
-                              rel="noopener noreferrer"
-                            >
-                              {children}
-                            </a>
-                          ),
-                          strong: ({ children }) => (
-                            <strong className="font-bold text-gray-900 dark:text-white">
-                              {children}
-                            </strong>
-                          ),
-                          em: ({ children }) => (
-                            <em className="italic">{children}</em>
-                          ),
-                          blockquote: ({ children }) => (
-                            <blockquote className="border-l-4 border-white/30 pl-4 italic my-4">
-                              {children}
-                            </blockquote>
-                          ),
-                        }}
-                      >
-                        {currentArticle.content}
-                      </ReactMarkdown>
-                    </div>
+                    <p className="text-gray-800 dark:text-white/90 text-lg leading-relaxed whitespace-pre-line">
+                      {currentArticle.content}
+                    </p>
                   </section>
 
                   <footer className="flex items-center gap-2 pt-4">
                     <div
-                      className="text-white/70 text-sm"
+                      className="text-gray-600 dark:text-white/70 text-sm"
                       aria-label="Article progress"
                     >
                       Article {currentArticleIndex + 1} of {articles.length}
@@ -302,7 +230,7 @@ export default function ShortsPage() {
           </AnimatePresence>
         </motion.main>
 
-        {/* Action Buttons - Positioned just to the right of the short */}
+        {/* Action Buttons - Positioned just to the right of the article */}
         <motion.div
           animate={{ x: showRelatedArticles ? "-25%" : 0 }}
           transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}

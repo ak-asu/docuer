@@ -261,7 +261,7 @@ docuer/
 │   ├── courses/          # Courses page
 │   ├── onboarding/       # Onboarding flow
 │   ├── profile/          # User profile
-│   └── shorts/           # TikTok-style feed
+│   └── articles/         # TikTok-style feed
 ├── lib/
 │   ├── services/         # External API integrations
 │   ├── store/            # Zustand state management

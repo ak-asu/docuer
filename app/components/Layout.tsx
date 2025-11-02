@@ -1,6 +1,7 @@
 "use client";
 
 import { ReactNode, useState, useEffect } from "react";
+import Image from "next/image";
 import { useRouter, usePathname } from "next/navigation";
 import { Button, Avatar } from "@heroui/react";
 import { Home, BookOpen, Settings, Menu, X, LogOut } from "lucide-react";
@@ -42,7 +43,7 @@ export default function Layout({ children }: LayoutProps) {
 
   const navItems = [
     { path: "/courses", label: "Courses", icon: BookOpen },
-    { path: "/shorts", label: "Shorts", icon: Home },
+    { path: "/articles", label: "Articles", icon: Home },
   ];
 
   const isActive = (path: string) => pathname?.startsWith(path);
@@ -56,9 +57,16 @@ export default function Layout({ children }: LayoutProps) {
               onClick={() => router.push("/onboarding")}
               className="flex items-center gap-3 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-lg px-2 py-1 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
             >
-              <div className="w-8 h-8 bg-linear-to-br from-blue-600 to-green-600 rounded-lg" />
+              <Image
+                src="/images/favicon-32x32.png"
+                alt="Docuer Logo"
+                width={32}
+                height={32}
+                priority
+                className="w-8 h-8 bg-gradient-to-br from-blue-600 to-green-600 rounded-lg"
+              />
               <span className="text-xl font-bold text-gray-900 dark:text-gray-50">
-                LearnFlow
+                Docuer
               </span>
             </button>
 

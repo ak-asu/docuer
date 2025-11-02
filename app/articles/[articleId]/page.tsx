@@ -5,6 +5,7 @@ import { useRouter, useParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardBody, Button } from "@heroui/react";
 import { BookOpen, MessageCircle, Bookmark, Brain, Check } from "lucide-react";
+import ReactMarkdown from "react-markdown";
 import { useStore } from "@/lib/store/useStore";
 import QuizModal from "@/app/components/QuizModal";
 import Layout from "@/app/components/Layout";
@@ -14,34 +15,45 @@ const ActionButton = ({
   label,
   onClick,
   isActive = false,
+  variant = "default",
 }: {
   icon: React.ElementType;
   label: string;
   onClick: () => void;
   isActive?: boolean;
-}) => (
-  <motion.button
-    whileTap={{ scale: 0.9 }}
-    onClick={onClick}
-    className="flex flex-col items-center gap-1 group"
-    aria-label={label}
-  >
-    <div
-      className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors ${
-        isActive
-          ? "bg-blue-600 text-white"
-          : "bg-white/90 text-gray-700 group-hover:bg-white"
-      } shadow-lg`}
-    >
-      <Icon size={24} />
-    </div>
-    <span className="text-xs text-gray-900 dark:text-white drop-shadow-lg font-medium">
-      {label}
-    </span>
-  </motion.button>
-);
+  variant?: "default" | "complete";
+}) => {
+  const getButtonStyles = () => {
+    if (variant === "complete") {
+      return isActive
+        ? "bg-green-500 text-white"
+        : "bg-blue-500 text-white group-hover:bg-blue-600";
+    }
+    return isActive
+      ? "bg-blue-600 text-white"
+      : "bg-white/90 dark:bg-white/90 text-gray-700 group-hover:bg-white";
+  };
 
-export default function ShortsPage() {
+  return (
+    <motion.button
+      whileTap={{ scale: 0.9 }}
+      onClick={onClick}
+      className="flex flex-col items-center gap-1 group"
+      aria-label={label}
+    >
+      <div
+        className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors ${getButtonStyles()} shadow-lg`}
+      >
+        <Icon size={24} />
+      </div>
+      <span className="text-xs text-gray-900 dark:text-white drop-shadow-lg font-medium">
+        {label}
+      </span>
+    </motion.button>
+  );
+};
+
+export default function ArticlePage() {
   const params = useParams();
   const articleId = params?.articleId as string | undefined;
   const router = useRouter();
@@ -73,7 +85,7 @@ export default function ShortsPage() {
 
   useEffect(() => {
     if (currentArticle) {
-      router.replace(`/shorts/${currentArticle.id}`);
+      router.replace(`/articles/${currentArticle.id}`);
     }
   }, [currentArticleIndex, currentArticle, router]);
 
@@ -166,18 +178,12 @@ export default function ShortsPage() {
               className="absolute inset-0 m-2"
               onClick={handleDoubleTap}
             >
-              <div className="absolute inset-0 bg-linear-to-br from-blue-900 via-blue-700 to-green-600 opacity-90 rounded-lg" />
+              <div className="absolute inset-0 bg-gradient-to-br from-blue-900 via-blue-700 to-green-600 opacity-90 rounded-lg" />
 
-              <article className="relative h-full flex flex-col justify-center p-6 md:p-12 overflow-y-auto">
+              <article className="relative h-full flex flex-col justify-center p-6 md:p-12">
                 <div className="space-y-6">
                   <header className="space-y-2">
-                    <span
-                      className="text-sm text-gray-600 dark:text-white/80 font-medium"
-                      aria-label="Reading time"
-                    >
-                      {currentArticle.duration}
-                    </span>
-                    <h1 className="text-4xl md:text-5xl font-bold text-gray-900 dark:text-white leading-tight">
+                    <h1 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white leading-tight">
                       {currentArticle.title}
                     </h1>
                   </header>
@@ -186,29 +192,81 @@ export default function ShortsPage() {
                     className="prose prose-invert prose-lg max-w-none"
                     aria-label="Article content"
                   >
-                    <p className="text-gray-800 dark:text-white/90 text-lg leading-relaxed whitespace-pre-line">
-                      {currentArticle.content}
-                    </p>
-                  </section>
-
-                  <footer className="flex items-center gap-2 pt-4">
-                    <div
-                      className="text-gray-600 dark:text-white/70 text-sm"
-                      aria-label="Article progress"
-                    >
-                      Article {currentArticleIndex + 1} of {articles.length}
-                    </div>
-                    {currentArticle.completed && (
-                      <div
-                        className="flex items-center gap-1 text-green-400 text-sm font-medium"
-                        role="status"
-                        aria-label="Article completed"
+                    <div className="text-gray-800 dark:text-white/90 text-base leading-relaxed markdown-content">
+                      <ReactMarkdown
+                        components={{
+                          p: ({ children }) => (
+                            <p className="mb-2">{children}</p>
+                          ),
+                          h1: ({ children }) => (
+                            <h1 className="text-2xl font-bold mb-2 text-gray-900 dark:text-white">
+                              {children}
+                            </h1>
+                          ),
+                          h2: ({ children }) => (
+                            <h2 className="text-xl font-bold mb-2 text-gray-900 dark:text-white">
+                              {children}
+                            </h2>
+                          ),
+                          h3: ({ children }) => (
+                            <h3 className="text-lg font-semibold mb-2 text-gray-900 dark:text-white">
+                              {children}
+                            </h3>
+                          ),
+                          ul: ({ children }) => (
+                            <ul className="list-disc list-inside mb-2 space-y-1">
+                              {children}
+                            </ul>
+                          ),
+                          ol: ({ children }) => (
+                            <ol className="list-decimal list-inside mb-2 space-y-1">
+                              {children}
+                            </ol>
+                          ),
+                          li: ({ children }) => (
+                            <li className="text-gray-800 dark:text-gray-100">
+                              {children}
+                            </li>
+                          ),
+                          code: ({ children }) => (
+                            <code className="bg-white/10 dark:bg-gray-700 px-2 py-1 rounded text-sm text-gray-800 dark:text-gray-100">
+                              {children}
+                            </code>
+                          ),
+                          pre: ({ children }) => (
+                            <pre className="bg-white/10 dark:bg-gray-700 p-4 rounded-lg overflow-x-auto mb-2 text-gray-800 dark:text-gray-100">
+                              {children}
+                            </pre>
+                          ),
+                          a: ({ children, href }) => (
+                            <a
+                              href={href}
+                              className="text-blue-600 dark:text-blue-300 hover:text-blue-800 underline"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              {children}
+                            </a>
+                          ),
+                          strong: ({ children }) => (
+                            <strong className="font-bold text-gray-900 dark:text-white">
+                              {children}
+                            </strong>
+                          ),
+                          em: ({ children }) => (
+                            <em className="italic">{children}</em>
+                          ),
+                          blockquote: ({ children }) => (
+                            <blockquote className="border-l-4 border-white/30 pl-4 italic my-2">
+                              {children}
+                            </blockquote>
+                          ),
+                        }}
                       >
-                        <Check size={16} aria-hidden="true" />
-                        Completed
-                      </div>
-                    )}
-                  </footer>
+                        {currentArticle.content}
+                      </ReactMarkdown>
+                    </div>
+                  </section>
                 </div>
               </article>
 
@@ -230,7 +288,7 @@ export default function ShortsPage() {
           </AnimatePresence>
         </motion.main>
 
-        {/* Action Buttons - Positioned just to the right of the short */}
+        {/* Action Buttons - Positioned just to the right of the article */}
         <motion.div
           animate={{ x: showRelatedArticles ? "-25%" : 0 }}
           transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
@@ -264,6 +322,13 @@ export default function ShortsPage() {
             icon={Brain}
             label="Quiz"
             onClick={() => setShowQuizModal(true)}
+          />
+          <ActionButton
+            icon={Check}
+            label="Complete"
+            onClick={() => toggleArticleComplete(currentArticle.id)}
+            isActive={currentArticle.completed}
+            variant="complete"
           />
         </motion.div>
 

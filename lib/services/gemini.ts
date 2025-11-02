@@ -8,6 +8,8 @@ import type {
 } from "../types";
 import { supermemoryService } from "./supermemory";
 
+const GEMINI_MODEL = "gemini-2.0-flash";
+
 class GeminiService {
   private client: GoogleGenAI | null = null;
 
@@ -64,7 +66,7 @@ Requirements:
 Return the article content only (no titles, just the body text).`;
 
       const result = await this.client.models.generateContent({
-        model: "gemini-2.0-flash-exp",
+        model: GEMINI_MODEL,
         contents: prompt,
       });
       const content = result.text || "";
@@ -164,7 +166,7 @@ ${profileText ? "7. Reference user's background or interests if relevant" : ""}
 Return ONLY the article content (no titles, metadata, or extra text). Must be 160 words or less.`;
 
       const result = await this.client.models.generateContent({
-        model: "gemini-2.0-flash-exp",
+        model: GEMINI_MODEL,
         contents: prompt,
       });
       const content = result.text || "";
@@ -237,15 +239,19 @@ For each topic:
 1. Provide a clear, concise name
 2. Write a brief description (1-2 sentences)
 3. Rate importance (0.0-1.0, where 1.0 is most important)
-4. List prerequisites (topic names that should be learned first)
-5. List related topics
+4. List prerequisites (topic names that should be learned first) - CAN BE MULTIPLE
+5. List related topics - CAN BE MULTIPLE
 
 Requirements:
+- Topics should form a KNOWLEDGE WEB, not a linear sequence
+- Each topic can have MULTIPLE prerequisites and MULTIPLE related topics
+- A topic can connect to several other topics, creating a network/graph structure
 - Topics should be logical learning units
 - Order by importance (most important first)
 - Ensure topics cover the main concepts
 - Include both foundational and advanced topics
 - Prerequisites should reference other topic names in the list
+- Create rich interconnections between topics where they naturally relate
 
 Return as JSON array:
 [
@@ -253,13 +259,13 @@ Return as JSON array:
     "name": "Topic Name",
     "description": "Brief description of what this topic covers",
     "importance": 0.9,
-    "prerequisites": ["Other Topic Name"],
-    "relatedTopics": ["Related Topic 1", "Related Topic 2"]
+    "prerequisites": ["Other Topic Name", "Another Topic"],
+    "relatedTopics": ["Related Topic 1", "Related Topic 2", "Related Topic 3"]
   }
 ]`;
 
       const result = await this.client.models.generateContent({
-        model: "gemini-2.0-flash-exp",
+        model: GEMINI_MODEL,
         contents: prompt,
       });
       const text = result.text || "";
@@ -327,7 +333,7 @@ Return as JSON array:
 ]`;
 
       const result = await this.client.models.generateContent({
-        model: "gemini-2.0-flash-exp",
+        model: GEMINI_MODEL,
         contents: prompt,
       });
       const text = result.text || "";
@@ -392,7 +398,7 @@ ${content}
 Return as JSON array of section texts: ["section1", "section2", ...]`;
 
       const result = await this.client.models.generateContent({
-        model: "gemini-2.0-flash-exp",
+        model: GEMINI_MODEL,
         contents: prompt,
       });
       const text = result.text || "";
@@ -482,7 +488,7 @@ Requirements:
 Return the expanded content only.`;
 
       const result = await this.client.models.generateContent({
-        model: "gemini-2.0-flash-exp",
+        model: GEMINI_MODEL,
         contents: prompt,
       });
       return result.text || "";
@@ -491,6 +497,28 @@ Return the expanded content only.`;
       throw new Error(
         `Failed to generate in-depth content for: ${article.title}`,
       );
+    }
+  }
+
+  /**
+   * Generate content using Gemini with a custom prompt
+   * General-purpose method for any text generation
+   */
+  async generateContent(prompt: string): Promise<string> {
+    if (!this.client) {
+      throw new Error("Gemini is not configured");
+    }
+
+    try {
+      const result = await this.client.models.generateContent({
+        model: GEMINI_MODEL,
+        contents: prompt,
+      });
+
+      return result.text || "";
+    } catch (error) {
+      console.error("Gemini content generation error:", error);
+      throw new Error("Failed to generate content with Gemini");
     }
   }
 }

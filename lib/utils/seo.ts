@@ -72,7 +72,7 @@ export const updatePageMeta = (
 };
 
 export const defaultMeta = {
-  title: "LearnFlow - Modern Learning Platform",
+  title: "Docuer - Modern Learning Platform",
   description:
     "Enhance your skills with bite-sized, interactive learning experiences. Curated courses, quick reads, and engaging quizzes.",
 };

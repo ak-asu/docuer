@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Modal,
   ModalContent,
@@ -10,10 +10,12 @@ import {
   Button,
   Card,
   CardBody,
+  Spinner,
 } from "@heroui/react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Check, X, Trophy, RotateCw } from "lucide-react";
 import { useStore } from "@/lib/store/useStore";
+import { authService } from "@/lib/services/auth";
 
 interface QuizModalProps {
   isOpen: boolean;
@@ -22,20 +24,66 @@ interface QuizModalProps {
 }
 
 export default function QuizModal({ isOpen, onClose }: QuizModalProps) {
-  const { quizQuestions, articles, currentArticleIndex } = useStore();
+  const { quizQuestions, articles, currentArticleIndex, addQuizQuestions } =
+    useStore();
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [showResult, setShowResult] = useState(false);
   const [score, setScore] = useState(0);
   const [answeredQuestions, setAnsweredQuestions] = useState<number[]>([]);
   const [quizCompleted, setQuizCompleted] = useState(false);
+  const [isGeneratingQuiz, setIsGeneratingQuiz] = useState(false);
 
-  // Get questions for articles up to current index
-  const viewedArticles = articles.slice(0, currentArticleIndex + 1);
-  const viewedArticleIds = viewedArticles.map((a) => a.id);
+  // Get completed articles only
+  const completedArticles = articles.filter((a) => a.completed);
+  const completedArticleIds = completedArticles.map((a) => a.id);
   const relevantQuestions = quizQuestions.filter((q) =>
-    viewedArticleIds.includes(q.articleId),
+    completedArticleIds.includes(q.articleId),
   );
+
+  // Auto-generate quiz questions when modal opens if there are completed articles but no questions
+  useEffect(() => {
+    if (
+      isOpen &&
+      completedArticles.length > 0 &&
+      relevantQuestions.length === 0
+    ) {
+      generateQuizFromCompleted();
+    }
+  }, [isOpen]);
+
+  const generateQuizFromCompleted = async () => {
+    setIsGeneratingQuiz(true);
+    try {
+      const currentUser = authService.getCurrentUser();
+      const userId = currentUser?.id || "anonymous";
+
+      const response = await fetch("/api/quiz/generate-from-completed", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          completedArticles,
+          userId,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to generate quiz");
+      }
+
+      const data = await response.json();
+
+      if (data.success && data.questions) {
+        addQuizQuestions(data.questions);
+      }
+    } catch (error) {
+      console.error("Quiz generation error:", error);
+    } finally {
+      setIsGeneratingQuiz(false);
+    }
+  };
 
   const resetQuiz = () => {
     setCurrentQuestionIndex(0);
@@ -51,18 +99,19 @@ export default function QuizModal({ isOpen, onClose }: QuizModalProps) {
     setSelectedAnswer(answerIndex);
   };
 
-  const handleSubmitAnswer = () => {
-    if (selectedAnswer === null) return;
+  const handleAnswerSubmit = (answerIndex: number) => {
+    if (showResult) return;
 
     const currentQuestion = relevantQuestions[currentQuestionIndex];
-    const isCorrect = selectedAnswer === currentQuestion.correctAnswer;
+    const isCorrect = answerIndex === currentQuestion.correctAnswer;
 
     if (isCorrect) {
       setScore(score + 1);
     }
 
+    setSelectedAnswer(answerIndex);
     setShowResult(true);
-    setAnsweredQuestions([...answeredQuestions, selectedAnswer]);
+    setAnsweredQuestions([...answeredQuestions, answerIndex]);
   };
 
   const handleNextQuestion = () => {
@@ -75,9 +124,37 @@ export default function QuizModal({ isOpen, onClose }: QuizModalProps) {
     }
   };
 
+  const handlePreviousQuestion = () => {
+    if (currentQuestionIndex > 0) {
+      setCurrentQuestionIndex(currentQuestionIndex - 1);
+      setSelectedAnswer(answeredQuestions[currentQuestionIndex - 1] ?? null);
+      setShowResult(answeredQuestions[currentQuestionIndex - 1] !== undefined);
+    }
+  };
+
   const handleRetakeQuiz = () => {
     resetQuiz();
   };
+
+  if (isGeneratingQuiz) {
+    return (
+      <Modal isOpen={isOpen} onClose={onClose} size="2xl" isDismissable={false}>
+        <ModalContent>
+          <ModalHeader>
+            <h2 className="text-2xl font-bold">Quick Quiz</h2>
+          </ModalHeader>
+          <ModalBody>
+            <div className="text-center py-8 space-y-4">
+              <Spinner size="lg" />
+              <p className="text-gray-600">
+                Generating quiz questions from your completed articles...
+              </p>
+            </div>
+          </ModalBody>
+        </ModalContent>
+      </Modal>
+    );
+  }
 
   if (relevantQuestions.length === 0) {
     return (
@@ -89,8 +166,8 @@ export default function QuizModal({ isOpen, onClose }: QuizModalProps) {
           <ModalBody>
             <div className="text-center py-8">
               <p className="text-gray-600">
-                No quiz questions available yet. Keep reading articles to unlock
-                quizzes!
+                No quiz questions available yet. Complete some articles to
+                unlock quizzes!
               </p>
             </div>
           </ModalBody>
@@ -152,7 +229,7 @@ export default function QuizModal({ isOpen, onClose }: QuizModalProps) {
                       return (
                         <motion.button
                           key={index}
-                          onClick={() => handleAnswerSelect(index)}
+                          onClick={() => handleAnswerSubmit(index)}
                           disabled={showResult}
                           whileHover={!showResult ? { scale: 1.02 } : {}}
                           whileTap={!showResult ? { scale: 0.98 } : {}}
@@ -287,27 +364,31 @@ export default function QuizModal({ isOpen, onClose }: QuizModalProps) {
         </ModalBody>
         <ModalFooter>
           {!quizCompleted ? (
-            showResult ? (
-              <Button color="primary" onPress={handleNextQuestion} size="lg">
-                {currentQuestionIndex < relevantQuestions.length - 1
-                  ? "Next Question"
-                  : "See Results"}
+            <div className="flex justify-between items-center w-full gap-4">
+              <Button
+                variant="flat"
+                onPress={handlePreviousQuestion}
+                isDisabled={currentQuestionIndex === 0}
+                size="lg"
+              >
+                Previous
               </Button>
-            ) : (
-              <>
+              {!showResult && (
                 <Button variant="flat" onPress={onClose}>
                   Cancel
                 </Button>
-                <Button
-                  color="primary"
-                  onPress={handleSubmitAnswer}
-                  isDisabled={selectedAnswer === null}
-                  size="lg"
-                >
-                  Submit Answer
-                </Button>
-              </>
-            )
+              )}
+              <Button
+                color="primary"
+                onPress={handleNextQuestion}
+                isDisabled={!showResult}
+                size="lg"
+              >
+                {currentQuestionIndex < relevantQuestions.length - 1
+                  ? "Next"
+                  : "See Results"}
+              </Button>
+            </div>
           ) : (
             <div className="flex gap-2 w-full">
               <Button

@@ -20,6 +20,7 @@ import { Plus, BookOpen, Edit, Trash2, Play } from "lucide-react";
 import { z } from "zod";
 import { useStore, Course } from "@/lib/store/useStore";
 import EditCourseModal from "@/app/components/EditCourseModal";
+import GoogleDriveFilePicker from "@/app/components/GoogleDriveFilePicker";
 import Layout from "@/app/components/Layout";
 import { sanitizeInput } from "@/lib/utils/seo";
 
@@ -50,14 +51,25 @@ export default function CoursesPage() {
   });
   const [documentationUrl, setDocumentationUrl] = useState("");
   const [googleDriveUrl, setGoogleDriveUrl] = useState("");
+  const [selectedDriveFiles, setSelectedDriveFiles] = useState<string[]>([]);
+  const [showFilePickerDialog, setShowFilePickerDialog] = useState(false);
   const [sourceType, setSourceType] = useState<
-    "none" | "url" | "gdrive" | "url-advanced"
-  >("none");
+    "url" | "gdrive" | "url-advanced"
+  >("url");
   const [errors, setErrors] = useState<
     Partial<Record<keyof CourseFormData, string>>
   >({});
+  const [notification, setNotification] = useState<{
+    type: "error" | "success";
+    message: string;
+  } | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
+
+  const showNotification = (type: "error" | "success", message: string) => {
+    setNotification({ type, message });
+    setTimeout(() => setNotification(null), 4000);
+  };
 
   const categories = [
     "Frontend",
@@ -83,9 +95,51 @@ export default function CoursesPage() {
     setIsEditModalOpen(true);
   };
 
+  const checkGoogleDriveConnection = (): boolean => {
+    const { userProfile } = useStore.getState();
+    const savedConnection = localStorage.getItem(
+      `gdrive_connection_${userProfile.email}`,
+    );
+    return savedConnection !== null;
+  };
+
+  const handleSelectFilesFromDrive = () => {
+    if (!checkGoogleDriveConnection()) {
+      showNotification(
+        "error",
+        "Please connect Google Drive first in your profile settings",
+      );
+      // Redirect to profile page after a short delay
+      setTimeout(() => {
+        router.push("/profile");
+      }, 1500);
+      return;
+    }
+    setShowFilePickerDialog(true);
+  };
+
   const handleCreateCourse = async () => {
     try {
       courseSchema.parse(formData);
+
+      // Validate documentation source
+      if (sourceType === "url" && !documentationUrl) {
+        showNotification("error", "Please provide a documentation URL");
+        return;
+      }
+
+      if (sourceType === "url-advanced" && !documentationUrl) {
+        showNotification("error", "Please provide a documentation URL");
+        return;
+      }
+
+      if (sourceType === "gdrive" && selectedDriveFiles.length === 0) {
+        showNotification(
+          "error",
+          "Please select at least one file from Google Drive",
+        );
+        return;
+      }
 
       if (sourceType === "url" && documentationUrl) {
         // Create course from documentation URL using API
@@ -95,34 +149,27 @@ export default function CoursesPage() {
           formData.description,
           formData.category,
         );
-      } else if (sourceType === "gdrive" && googleDriveUrl) {
-        // TODO: Implement Google Drive flow
-        alert(
-          "Google Drive integration - Backend ready! Connect to: " +
-            googleDriveUrl,
+      } else if (sourceType === "gdrive" && selectedDriveFiles.length > 0) {
+        // Create course from Google Drive files
+        // This would call the API to import the selected files
+        showNotification(
+          "success",
+          `Google Drive integration - ${selectedDriveFiles.length} file(s) selected for import`,
         );
+        // TODO: Call API to create course from Drive files
       } else if (sourceType === "url-advanced" && documentationUrl) {
         // TODO: Implement two-phase Firecrawl
-        alert(
+        showNotification(
+          "success",
           "Advanced URL selection - Backend ready! URL: " + documentationUrl,
         );
-      } else {
-        // Create manual course (no documentation source)
-        const newCourse = {
-          id: Date.now().toString(),
-          ...formData,
-          progress: 0,
-          totalArticles: 0,
-          completedArticles: 0,
-          createdAt: new Date().toISOString(),
-        };
-        addCourse(newCourse);
       }
 
       setFormData({ title: "", description: "", category: "" });
       setDocumentationUrl("");
       setGoogleDriveUrl("");
-      setSourceType("none");
+      setSelectedDriveFiles([]);
+      setSourceType("url");
       setErrors({});
       setSelectedTab("existing");
     } catch (err) {
@@ -380,25 +427,9 @@ export default function CoursesPage() {
                         <div className="border-t pt-4 space-y-4">
                           <div>
                             <label className="text-sm font-medium text-gray-700 mb-2 block">
-                              Documentation Source (Optional)
+                              Documentation Source *
                             </label>
                             <div className="space-y-2">
-                              <label className="flex items-center gap-2 cursor-pointer">
-                                <input
-                                  type="radio"
-                                  name="sourceType"
-                                  value="none"
-                                  checked={sourceType === "none"}
-                                  onChange={(e) =>
-                                    setSourceType(e.target.value as "none")
-                                  }
-                                  className="w-4 h-4 text-blue-600"
-                                />
-                                <span className="text-sm">
-                                  Manual (No documentation)
-                                </span>
-                              </label>
-
                               <label className="flex items-center gap-2 cursor-pointer">
                                 <input
                                   type="radio"
@@ -426,9 +457,7 @@ export default function CoursesPage() {
                                   }
                                   className="w-4 h-4 text-blue-600"
                                 />
-                                <span className="text-sm">
-                                  Google Drive Link
-                                </span>
+                                <span className="text-sm">Google Drive</span>
                               </label>
 
                               <label className="flex items-center gap-2 cursor-pointer">
@@ -478,17 +507,29 @@ export default function CoursesPage() {
                                 animate={{ opacity: 1, height: "auto" }}
                                 exit={{ opacity: 0, height: 0 }}
                                 key="gdrive-input"
+                                className="space-y-3"
                               >
-                                <Input
-                                  label="Google Drive Link"
-                                  placeholder="https://drive.google.com/drive/folders/..."
-                                  value={googleDriveUrl}
-                                  onChange={(e) =>
-                                    setGoogleDriveUrl(e.target.value)
-                                  }
-                                  description="Provide a public Google Drive folder link"
-                                  size="lg"
-                                />
+                                <div className="flex items-center gap-3">
+                                  <Button
+                                    color="primary"
+                                    variant="flat"
+                                    onPress={handleSelectFilesFromDrive}
+                                    size="lg"
+                                  >
+                                    Select Files from Google Drive
+                                  </Button>
+                                  {selectedDriveFiles.length > 0 && (
+                                    <span className="text-sm text-gray-600">
+                                      {selectedDriveFiles.length} file(s)
+                                      selected
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-sm text-gray-600">
+                                  Connect your Google Drive in the profile page
+                                  first, then select specific documents to
+                                  create a course
+                                </p>
                               </motion.div>
                             )}
 
@@ -563,6 +604,37 @@ export default function CoursesPage() {
           }}
           course={selectedCourse}
         />
+
+        <GoogleDriveFilePicker
+          isOpen={showFilePickerDialog}
+          onClose={() => setShowFilePickerDialog(false)}
+          onSelectFiles={(fileIds) => {
+            setSelectedDriveFiles(fileIds);
+            setShowFilePickerDialog(false);
+          }}
+        />
+
+        {/* Notification Toast */}
+        <AnimatePresence>
+          {notification && (
+            <motion.div
+              initial={{ opacity: 0, y: -50 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -50 }}
+              className="fixed top-4 right-4 z-50 max-w-md"
+            >
+              <div
+                className={`p-4 rounded-lg shadow-lg ${
+                  notification.type === "error"
+                    ? "bg-red-500 text-white"
+                    : "bg-green-500 text-white"
+                }`}
+              >
+                <p className="font-medium">{notification.message}</p>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </main>
     </Layout>
   );

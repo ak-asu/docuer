@@ -261,8 +261,8 @@ Route (app)
 ├ ○ /courses                  (static)
 ├ ○ /onboarding               (static)
 ├ ○ /profile                  (static)
-├ ○ /shorts                   (static)
-└ ƒ /shorts/[articleId]       (dynamic)
+├ ○ /articles                 (static)
+└ ƒ /articles/[articleId]    (dynamic)
 ```
 
 **Verification**:
