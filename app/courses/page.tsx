@@ -49,12 +49,15 @@ export default function CoursesPage() {
     category: "",
   });
   const [documentationUrl, setDocumentationUrl] = useState("");
+  const [googleDriveUrl, setGoogleDriveUrl] = useState("");
+  const [sourceType, setSourceType] = useState<
+    "none" | "url" | "gdrive" | "url-advanced"
+  >("none");
   const [errors, setErrors] = useState<
     Partial<Record<keyof CourseFormData, string>>
   >({});
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
-  const [showUrlInput, setShowUrlInput] = useState(false);
 
   const categories = [
     "Frontend",
@@ -84,7 +87,7 @@ export default function CoursesPage() {
     try {
       courseSchema.parse(formData);
 
-      if (showUrlInput && documentationUrl) {
+      if (sourceType === "url" && documentationUrl) {
         // Create course from documentation URL using API
         await createCourseFromUrl(
           documentationUrl,
@@ -92,8 +95,19 @@ export default function CoursesPage() {
           formData.description,
           formData.category,
         );
+      } else if (sourceType === "gdrive" && googleDriveUrl) {
+        // TODO: Implement Google Drive flow
+        alert(
+          "Google Drive integration - Backend ready! Connect to: " +
+            googleDriveUrl,
+        );
+      } else if (sourceType === "url-advanced" && documentationUrl) {
+        // TODO: Implement two-phase Firecrawl
+        alert(
+          "Advanced URL selection - Backend ready! URL: " + documentationUrl,
+        );
       } else {
-        // Create manual course (no URL)
+        // Create manual course (no documentation source)
         const newCourse = {
           id: Date.now().toString(),
           ...formData,
@@ -107,7 +121,8 @@ export default function CoursesPage() {
 
       setFormData({ title: "", description: "", category: "" });
       setDocumentationUrl("");
-      setShowUrlInput(false);
+      setGoogleDriveUrl("");
+      setSourceType("none");
       setErrors({});
       setSelectedTab("existing");
     } catch (err) {
@@ -362,35 +377,141 @@ export default function CoursesPage() {
                           ))}
                         </Select>
 
-                        <div className="border-t pt-4">
-                          <Button
-                            variant="light"
-                            size="sm"
-                            onPress={() => setShowUrlInput(!showUrlInput)}
-                            className="mb-4"
-                          >
-                            {showUrlInput ? "Hide" : "Add"} Documentation URL
-                            (AI-powered)
-                          </Button>
+                        <div className="border-t pt-4 space-y-4">
+                          <div>
+                            <label className="text-sm font-medium text-gray-700 mb-2 block">
+                              Documentation Source (Optional)
+                            </label>
+                            <div className="space-y-2">
+                              <label className="flex items-center gap-2 cursor-pointer">
+                                <input
+                                  type="radio"
+                                  name="sourceType"
+                                  value="none"
+                                  checked={sourceType === "none"}
+                                  onChange={(e) =>
+                                    setSourceType(e.target.value as "none")
+                                  }
+                                  className="w-4 h-4 text-blue-600"
+                                />
+                                <span className="text-sm">
+                                  Manual (No documentation)
+                                </span>
+                              </label>
 
-                          {showUrlInput && (
-                            <motion.div
-                              initial={{ opacity: 0, height: 0 }}
-                              animate={{ opacity: 1, height: "auto" }}
-                              exit={{ opacity: 0, height: 0 }}
-                            >
-                              <Input
-                                label="Documentation URL"
-                                placeholder="https://react.dev/learn"
-                                value={documentationUrl}
-                                onChange={(e) =>
-                                  setDocumentationUrl(e.target.value)
-                                }
-                                description="We'll automatically scrape and generate learning content from this documentation"
-                                size="lg"
-                              />
-                            </motion.div>
-                          )}
+                              <label className="flex items-center gap-2 cursor-pointer">
+                                <input
+                                  type="radio"
+                                  name="sourceType"
+                                  value="url"
+                                  checked={sourceType === "url"}
+                                  onChange={(e) =>
+                                    setSourceType(e.target.value as "url")
+                                  }
+                                  className="w-4 h-4 text-blue-600"
+                                />
+                                <span className="text-sm">
+                                  Documentation URL
+                                </span>
+                              </label>
+
+                              <label className="flex items-center gap-2 cursor-pointer">
+                                <input
+                                  type="radio"
+                                  name="sourceType"
+                                  value="gdrive"
+                                  checked={sourceType === "gdrive"}
+                                  onChange={(e) =>
+                                    setSourceType(e.target.value as "gdrive")
+                                  }
+                                  className="w-4 h-4 text-blue-600"
+                                />
+                                <span className="text-sm">
+                                  Google Drive Link
+                                </span>
+                              </label>
+
+                              <label className="flex items-center gap-2 cursor-pointer">
+                                <input
+                                  type="radio"
+                                  name="sourceType"
+                                  value="url-advanced"
+                                  checked={sourceType === "url-advanced"}
+                                  onChange={(e) =>
+                                    setSourceType(
+                                      e.target.value as "url-advanced",
+                                    )
+                                  }
+                                  className="w-4 h-4 text-blue-600"
+                                />
+                                <span className="text-sm">
+                                  Advanced URL Selection
+                                </span>
+                              </label>
+                            </div>
+                          </div>
+
+                          <AnimatePresence mode="wait">
+                            {sourceType === "url" && (
+                              <motion.div
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: "auto" }}
+                                exit={{ opacity: 0, height: 0 }}
+                                key="url-input"
+                              >
+                                <Input
+                                  label="Documentation URL"
+                                  placeholder="https://react.dev/learn"
+                                  value={documentationUrl}
+                                  onChange={(e) =>
+                                    setDocumentationUrl(e.target.value)
+                                  }
+                                  description="We'll automatically scrape and generate learning content"
+                                  size="lg"
+                                />
+                              </motion.div>
+                            )}
+
+                            {sourceType === "gdrive" && (
+                              <motion.div
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: "auto" }}
+                                exit={{ opacity: 0, height: 0 }}
+                                key="gdrive-input"
+                              >
+                                <Input
+                                  label="Google Drive Link"
+                                  placeholder="https://drive.google.com/drive/folders/..."
+                                  value={googleDriveUrl}
+                                  onChange={(e) =>
+                                    setGoogleDriveUrl(e.target.value)
+                                  }
+                                  description="Provide a public Google Drive folder link"
+                                  size="lg"
+                                />
+                              </motion.div>
+                            )}
+
+                            {sourceType === "url-advanced" && (
+                              <motion.div
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: "auto" }}
+                                exit={{ opacity: 0, height: 0 }}
+                                key="url-advanced-input"
+                              >
+                                <Input
+                                  label="Documentation URL"
+                                  placeholder="https://react.dev/learn"
+                                  value={documentationUrl}
+                                  onChange={(e) =>
+                                    setDocumentationUrl(e.target.value)
+                                  }
+                                  description="Select specific pages after site preview"
+                                  size="lg"
+                                />
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
                         </div>
 
                         {error && (

@@ -113,6 +113,79 @@ class FirecrawlService {
       throw new Error(`Failed to map website: ${url}`);
     }
   }
+
+  /**
+   * Get documentation overview (two-phase crawling - Phase 1)
+   * Returns sitemap and main page content for user selection
+   */
+  async getDocumentationOverview(url: string): Promise<{
+    mainUrl: string;
+    title: string;
+    description: string;
+    siteMap: string[];
+    mainPageContent: string;
+    totalPages: number;
+  }> {
+    if (!this.client) {
+      throw new Error(
+        "Firecrawl is not configured. Please add FIRECRAWL_API_KEY to your environment variables.",
+      );
+    }
+
+    try {
+      // Step 1: Scrape main page
+      const mainPage = await this.scrapeUrl(url);
+
+      // Step 2: Map all URLs on site
+      const siteMap = await this.mapWebsite(url);
+
+      return {
+        mainUrl: url,
+        title: mainPage.title,
+        description: mainPage.metadata?.description || "",
+        siteMap,
+        mainPageContent: mainPage.markdown,
+        totalPages: siteMap.length,
+      };
+    } catch (error) {
+      console.error("Failed to get documentation overview:", error);
+      throw new Error(`Failed to get overview: ${url}`);
+    }
+  }
+
+  /**
+   * Deep crawl selected URLs (two-phase crawling - Phase 2)
+   */
+  async crawlSelectedUrls(urls: string[]): Promise<ScrapedContent[]> {
+    if (!this.client) {
+      throw new Error(
+        "Firecrawl is not configured. Please add FIRECRAWL_API_KEY to your environment variables.",
+      );
+    }
+
+    const scrapedPages: ScrapedContent[] = [];
+
+    try {
+      // Scrape each selected URL
+      for (const url of urls) {
+        try {
+          const page = await this.scrapeUrl(url);
+          scrapedPages.push(page);
+
+          // Rate limiting - small delay between requests
+          await new Promise((resolve) => setTimeout(resolve, 500));
+        } catch (error) {
+          console.error(`Failed to scrape ${url}:`, error);
+          // Continue with other URLs even if one fails
+        }
+      }
+
+      return scrapedPages;
+    } catch (error) {
+      console.error("Failed to crawl selected URLs:", error);
+      throw new Error("Failed to crawl selected pages");
+    }
+  }
 }
 
 // Export singleton instance

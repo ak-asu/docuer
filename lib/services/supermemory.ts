@@ -7,6 +7,10 @@ interface UserProfile {
   profile?: {
     static?: string[];
   };
+  interests?: string[];
+  learningGoals?: string[];
+  preferredLearningStyle?: string;
+  level?: string;
 }
 
 class SupermemoryService {
@@ -193,14 +197,12 @@ class SupermemoryService {
    * Used for personalizing article generation
    * Falls back to auth service profiles for prototype
    */
-  async getUserProfile(userId: string): Promise<{
-    interests: string[];
-    learningGoals: string[];
-    preferredLearningStyle: string;
-  } | null> {
-    try {
-      if (!this.client) return null;
+  async getUserProfile(userId: string): Promise<UserProfile> {
+    if (!this.client) {
+      return this.getFallbackProfile(userId);
+    }
 
+    try {
       const memories = await this.client.search.memories({
         q: "user profile interests learning goals learning style preferences",
         containerTag: userId,
@@ -208,11 +210,8 @@ class SupermemoryService {
       });
 
       if (!memories.results || memories.results.length === 0) {
-        return {
-          interests: [],
-          learningGoals: [],
-          preferredLearningStyle: "visual",
-        };
+        // Fallback to auth service if no memories
+        return this.getFallbackProfile(userId);
       }
 
       const interests: string[] = [];
@@ -253,24 +252,57 @@ class SupermemoryService {
         interests: [...new Set(interests)],
         learningGoals: [...new Set(learningGoals)],
         preferredLearningStyle,
+        profile: {
+          static: [
+            ...interests.map((i) => `Interest: ${i}`),
+            ...learningGoals.map((g) => `Learning goal: ${g}`),
+            `Preferred learning style: ${preferredLearningStyle}`,
+          ],
+        },
       };
     } catch (error) {
       console.error("Error fetching user profile:", error);
-      return {
-        interests: [],
-        learningGoals: [],
-        preferredLearningStyle: "visual",
-      };
+      return this.getFallbackProfile(userId);
     }
   }
 
   /**
-   * Get fallback profile (for prototype)
-   * Note: Not currently used to avoid circular dependencies
+   * Get fallback profile from auth service (for prototype)
    */
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  private getFallbackProfile(_userId: string): UserProfile {
-    return { profile: { static: [] } };
+  private getFallbackProfile(userId: string): UserProfile {
+    try {
+      // Dynamic import to avoid circular dependencies
+      const { authService } = require("./auth");
+      const user = authService.getUserById(userId);
+
+      if (user) {
+        return {
+          interests: user.profile.interests,
+          learningGoals: [],
+          preferredLearningStyle: user.profile.learningStyle,
+          level: user.profile.level,
+          profile: {
+            static: [
+              `Learning level: ${user.profile.level}`,
+              `Preferred learning style: ${user.profile.learningStyle}`,
+              `Background: ${user.profile.background}`,
+              ...user.profile.interests.map(
+                (interest: string) => `Interest: ${interest}`,
+              ),
+            ],
+          },
+        };
+      }
+    } catch (error) {
+      console.error("Error loading auth service:", error);
+    }
+
+    return {
+      interests: [],
+      learningGoals: [],
+      preferredLearningStyle: "visual",
+      profile: { static: [] },
+    };
   }
 
   /**
@@ -302,7 +334,7 @@ class SupermemoryService {
       title: string;
       content?: string;
       markdown?: string;
-      metadata?: Record<string, string | number | boolean>;
+      metadata?: any;
     }>,
     sourceHash: string,
     userId: string,
@@ -315,18 +347,28 @@ class SupermemoryService {
 
     for (const page of scrapedContent) {
       try {
+        // Clean metadata to only include simple types
+        const cleanMetadata: Record<string, string | number | boolean> = {
+          url: page.url,
+          title: page.title,
+          type: "documentation_page",
+          source: "firecrawl",
+          createdBy: userId,
+          createdAt: new Date().toISOString(),
+        };
+
+        // Add simple metadata fields if they exist
+        if (page.metadata?.description) {
+          cleanMetadata.description = String(page.metadata.description);
+        }
+        if (page.metadata?.author) {
+          cleanMetadata.author = String(page.metadata.author);
+        }
+
         const result = await this.client.memories.add({
           content: page.markdown || page.content || "",
           containerTag: ContainerTags.documentation(sourceHash)[0],
-          metadata: {
-            url: page.url,
-            title: page.title,
-            type: "documentation_page",
-            source: "firecrawl",
-            createdBy: userId,
-            createdAt: new Date().toISOString(),
-            ...page.metadata,
-          },
+          metadata: cleanMetadata,
         });
 
         documentIds.push(result.id);
@@ -339,6 +381,113 @@ class SupermemoryService {
     }
 
     return documentIds;
+  }
+
+  /**
+   * Connect user's Google Drive to Supermemory
+   * Files will be stored in SHARED container for memory optimization
+   */
+  async connectGoogleDrive(
+    sourceHash: string,
+    redirectUrl: string,
+    userId: string,
+  ) {
+    if (!this.client) {
+      throw new Error("Supermemory not configured");
+    }
+
+    try {
+      const connection = await this.client.connections.create("google-drive", {
+        redirectUrl,
+        containerTags: [...ContainerTags.documentation(sourceHash)],
+        metadata: {
+          source: "google-drive",
+          platform: "docuer",
+          createdBy: userId,
+        },
+      });
+
+      return {
+        authLink: connection.authLink,
+        connectionId: connection.id,
+        expiresIn: connection.expiresIn,
+      };
+    } catch (error) {
+      console.error("Failed to connect Google Drive:", error);
+      throw new Error("Failed to connect Google Drive");
+    }
+  }
+
+  /**
+   * List Google Drive files from connection
+   */
+  async listGoogleDriveFiles(sourceHash: string) {
+    if (!this.client) {
+      throw new Error("Supermemory not configured");
+    }
+
+    try {
+      const documents = await this.client.connections.listDocuments(
+        "google-drive",
+        {
+          containerTags: [...ContainerTags.documentation(sourceHash)],
+        },
+      );
+
+      return documents || [];
+    } catch (error) {
+      console.error("Failed to list Google Drive files:", error);
+      return [];
+    }
+  }
+
+  /**
+   * Import files from Google Drive to Supermemory
+   */
+  async importFromGoogleDrive(
+    sourceHash: string,
+  ): Promise<{ documentIds: string[]; status: string }> {
+    if (!this.client) {
+      throw new Error("Supermemory not configured");
+    }
+
+    try {
+      // Trigger import for this container
+      await this.client.connections.import("google-drive", {
+        containerTags: [...ContainerTags.documentation(sourceHash)],
+      });
+
+      // Wait for processing (polling)
+      await this.waitForProcessing(sourceHash);
+
+      // Get imported document IDs
+      const documents = await this.listGoogleDriveFiles(sourceHash);
+
+      return {
+        documentIds: documents.map((d) => d.id),
+        status: "completed",
+      };
+    } catch (error) {
+      console.error("Failed to import from Google Drive:", error);
+      throw new Error("Failed to import from Google Drive");
+    }
+  }
+
+  /**
+   * Wait for documentation processing to complete
+   */
+  private async waitForProcessing(
+    sourceHash: string,
+    maxAttempts: number = 30,
+  ): Promise<void> {
+    for (let i = 0; i < maxAttempts; i++) {
+      const exists = await this.checkDocumentationExists(sourceHash);
+      if (exists) {
+        return;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 2000)); // Wait 2s between checks
+    }
+    throw new Error("Processing timeout - documents not available");
   }
 
   /**

@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { useStore } from "@/lib/store/useStore";
 import Layout from "@/app/components/Layout";
+import KnowledgeGraphVisualization from "@/app/components/KnowledgeGraphVisualization";
 
 export default function CourseDetailPage() {
   const params = useParams();
@@ -199,11 +200,29 @@ export default function CourseDetailPage() {
             </Card>
           </motion.div>
 
+          {/* Knowledge Graph Visualization */}
+          {courseArticles.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.5 }}
+              className="mb-8"
+            >
+              <KnowledgeGraphVisualization
+                articles={courseArticles}
+                courseId={courseId}
+                onNodeClick={(articleId) =>
+                  router.push(`/courses/${courseId}/${articleId}`)
+                }
+              />
+            </motion.div>
+          )}
+
           {/* Articles List */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.5 }}
+            transition={{ delay: 0.6 }}
           >
             <Card className="shadow-md">
               <CardHeader>
