@@ -885,24 +885,34 @@ class SupermemoryService {
 
       // Try multiple search strategies with retry logic
       let results;
-      const maxRetries = 3;
+      const maxRetries = 1;
 
       for (let attempt = 1; attempt <= maxRetries; attempt++) {
         console.log(`📡 Search attempt ${attempt}/${maxRetries}`);
 
         try {
-          // Strategy 1: Search with specific query
+          // Strategy 1: Search for type=documentation_page (what we store in metadata)
           results = await this.client.search.memories({
-            q: "documentation",
+            q: "documentation_page",
             containerTag: containerTag,
             limit: 100,
           });
 
-          // Strategy 2: If nothing found, try without query (list all in container)
+          // Strategy 2: If nothing found, try searching for common page content
           if (!results.results || results.results.length === 0) {
-            console.log("⚠️ Trying query without filter...");
+            console.log("⚠️ Trying with generic content query...");
             results = await this.client.search.memories({
-              q: "",
+              q: "page",
+              containerTag: containerTag,
+              limit: 100,
+            });
+          }
+
+          // Strategy 3: If still nothing, try searching for URL-like patterns
+          if (!results.results || results.results.length === 0) {
+            console.log("⚠️ Trying with URL pattern...");
+            results = await this.client.search.memories({
+              q: "http",
               containerTag: containerTag,
               limit: 100,
             });
