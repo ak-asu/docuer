@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
+import { useState } from "react";
 import {
   Modal,
   ModalContent,
@@ -12,16 +12,22 @@ import {
   Textarea,
   Select,
   SelectItem,
-} from '@heroui/react';
-import { motion } from 'framer-motion';
-import { z } from 'zod';
-import { useStore, Course } from '@/lib/store/useStore';
-import { sanitizeInput } from '@/lib/utils/seo';
+} from "@heroui/react";
+import { motion } from "framer-motion";
+import { z } from "zod";
+import { useStore, Course } from "@/lib/store/useStore";
+import { sanitizeInput } from "@/lib/utils/seo";
 
 const courseSchema = z.object({
-  title: z.string().min(3, 'Title must be at least 3 characters').max(100, 'Title must be less than 100 characters'),
-  description: z.string().min(10, 'Description must be at least 10 characters').max(500, 'Description must be less than 500 characters'),
-  category: z.string().min(1, 'Please select a category'),
+  title: z
+    .string()
+    .min(3, "Title must be at least 3 characters")
+    .max(100, "Title must be less than 100 characters"),
+  description: z
+    .string()
+    .min(10, "Description must be at least 10 characters")
+    .max(500, "Description must be less than 500 characters"),
+  category: z.string().min(1, "Please select a category"),
 });
 
 type CourseFormData = z.infer<typeof courseSchema>;
@@ -32,28 +38,42 @@ interface EditCourseModalProps {
   course: Course | null;
 }
 
-export default function EditCourseModal({ isOpen, onClose, course }: EditCourseModalProps) {
+export default function EditCourseModal({
+  isOpen,
+  onClose,
+  course,
+}: EditCourseModalProps) {
   const { updateCourse } = useStore();
   const [formData, setFormData] = useState<CourseFormData>({
-    title: '',
-    description: '',
-    category: '',
+    title: "",
+    description: "",
+    category: "",
   });
-  const [errors, setErrors] = useState<Partial<Record<keyof CourseFormData, string>>>({});
+  const [errors, setErrors] = useState<
+    Partial<Record<keyof CourseFormData, string>>
+  >({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const categories = ['Frontend', 'Backend', 'DevOps', 'Data Science', 'Mobile', 'Design', 'Programming'];
+  const categories = [
+    "Frontend",
+    "Backend",
+    "DevOps",
+    "Data Science",
+    "Mobile",
+    "Design",
+    "Programming",
+  ];
 
-  useEffect(() => {
-    if (isOpen && course) {
+  const resetFormData = () => {
+    if (course) {
       setFormData({
         title: course.title,
         description: course.description,
         category: course.category,
       });
-      setErrors({});
     }
-  }, [isOpen, course]);
+    setErrors({});
+  };
 
   const handleInputChange = (field: keyof CourseFormData, value: string) => {
     // Sanitize input to prevent XSS
@@ -94,14 +114,7 @@ export default function EditCourseModal({ isOpen, onClose, course }: EditCourseM
   };
 
   const handleCancel = () => {
-    if (course) {
-      setFormData({
-        title: course.title,
-        description: course.description,
-        category: course.category,
-      });
-    }
-    setErrors({});
+    resetFormData();
     onClose();
   };
 
@@ -117,8 +130,12 @@ export default function EditCourseModal({ isOpen, onClose, course }: EditCourseM
     >
       <ModalContent>
         <ModalHeader className="flex flex-col gap-1">
-          <h2 id="edit-course-title" className="text-2xl font-bold">Edit Course</h2>
-          <p className="text-sm text-gray-500 font-normal">Update course information</p>
+          <h2 id="edit-course-title" className="text-2xl font-bold">
+            Edit Course
+          </h2>
+          <p className="text-sm text-gray-500 font-normal">
+            Update course information
+          </p>
         </ModalHeader>
         <ModalBody>
           <motion.div
@@ -130,7 +147,7 @@ export default function EditCourseModal({ isOpen, onClose, course }: EditCourseM
               label="Course Title"
               placeholder="e.g., Advanced React Patterns"
               value={formData.title}
-              onChange={(e) => handleInputChange('title', e.target.value)}
+              onChange={(e) => handleInputChange("title", e.target.value)}
               isInvalid={!!errors.title}
               errorMessage={errors.title}
               size="lg"
@@ -142,7 +159,7 @@ export default function EditCourseModal({ isOpen, onClose, course }: EditCourseM
               label="Description"
               placeholder="Describe what students will learn in this course..."
               value={formData.description}
-              onChange={(e) => handleInputChange('description', e.target.value)}
+              onChange={(e) => handleInputChange("description", e.target.value)}
               isInvalid={!!errors.description}
               errorMessage={errors.description}
               minRows={4}
@@ -154,35 +171,34 @@ export default function EditCourseModal({ isOpen, onClose, course }: EditCourseM
               label="Category"
               placeholder="Select a category"
               selectedKeys={formData.category ? [formData.category] : []}
-              onChange={(e) => handleInputChange('category', e.target.value)}
+              onChange={(e) => handleInputChange("category", e.target.value)}
               isInvalid={!!errors.category}
               errorMessage={errors.category}
               isRequired
               aria-label="Course category"
             >
               {categories.map((category) => (
-                <SelectItem key={category}>
-                  {category}
-                </SelectItem>
+                <SelectItem key={category}>{category}</SelectItem>
               ))}
             </Select>
 
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
               <p className="text-sm text-blue-800">
-                <strong>Note:</strong> Editing course details will not affect your progress or completed articles.
+                <strong>Note:</strong> Editing course details will not affect
+                your progress or completed articles.
               </p>
             </div>
           </motion.div>
         </ModalBody>
         <ModalFooter>
-          <Button variant="flat" onPress={handleCancel} isDisabled={isSubmitting}>
+          <Button
+            variant="flat"
+            onPress={handleCancel}
+            isDisabled={isSubmitting}
+          >
             Cancel
           </Button>
-          <Button
-            color="primary"
-            onPress={handleSave}
-            isLoading={isSubmitting}
-          >
+          <Button color="primary" onPress={handleSave} isLoading={isSubmitting}>
             Save Changes
           </Button>
         </ModalFooter>

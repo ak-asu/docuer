@@ -1,11 +1,6 @@
 // Neo4j service for knowledge graph management
-import neo4j, { Driver, Session } from 'neo4j-driver';
-import type {
-  KnowledgeGraphNode,
-  KnowledgeGraphRelationship,
-  ExtractedTopic,
-  GeneratedArticle,
-} from '../types';
+import neo4j, { Driver, Session } from "neo4j-driver";
+import type { ExtractedTopic, GeneratedArticle } from "../types";
 
 class Neo4jService {
   private driver: Driver | null = null;
@@ -15,8 +10,22 @@ class Neo4jService {
     const username = process.env.NEO4J_USERNAME;
     const password = process.env.NEO4J_PASSWORD;
 
-    if (uri && username && password) {
-      this.driver = neo4j.driver(uri, neo4j.auth.basic(username, password));
+    // Only initialize if URI is valid (starts with neo4j:// or bolt://)
+    if (
+      uri &&
+      username &&
+      password &&
+      (uri.startsWith("neo4j://") ||
+        uri.startsWith("bolt://") ||
+        uri.startsWith("neo4j+s://") ||
+        uri.startsWith("bolt+s://"))
+    ) {
+      try {
+        this.driver = neo4j.driver(uri, neo4j.auth.basic(username, password));
+      } catch (error) {
+        console.warn("Failed to initialize Neo4j driver:", error);
+        this.driver = null;
+      }
     }
   }
 
@@ -32,7 +41,9 @@ class Neo4jService {
    */
   private getSession(): Session {
     if (!this.driver) {
-      throw new Error('Neo4j is not configured. Please add NEO4J_URI, NEO4J_USERNAME, and NEO4J_PASSWORD to your environment variables.');
+      throw new Error(
+        "Neo4j is not configured. Please add NEO4J_URI, NEO4J_USERNAME, and NEO4J_PASSWORD to your environment variables.",
+      );
     }
     return this.driver.session();
   }
@@ -49,7 +60,12 @@ class Neo4jService {
   /**
    * Create a course node in the knowledge graph
    */
-  async createCourse(courseId: string, title: string, description: string, category: string): Promise<void> {
+  async createCourse(
+    courseId: string,
+    title: string,
+    description: string,
+    category: string,
+  ): Promise<void> {
     const session = this.getSession();
     try {
       await session.run(
@@ -61,7 +77,7 @@ class Neo4jService {
             c.createdAt = datetime()
         RETURN c
         `,
-        { courseId, title, description, category }
+        { courseId, title, description, category },
       );
     } finally {
       await session.close();
@@ -71,7 +87,10 @@ class Neo4jService {
   /**
    * Create topic nodes and relationships
    */
-  async createTopics(courseId: string, topics: ExtractedTopic[]): Promise<void> {
+  async createTopics(
+    courseId: string,
+    topics: ExtractedTopic[],
+  ): Promise<void> {
     const session = this.getSession();
     try {
       for (const topic of topics) {
@@ -94,7 +113,7 @@ class Neo4jService {
             description: topic.description,
             importance: topic.importance,
             courseId,
-          }
+          },
         );
 
         // Create prerequisite relationships
@@ -105,7 +124,7 @@ class Neo4jService {
             MATCH (t2:Topic {name: $prereqName})
             MERGE (t1)-[:PREREQUISITE]->(t2)
             `,
-            { topicId: topic.id, prereqName: prereq }
+            { topicId: topic.id, prereqName: prereq },
           );
         }
 
@@ -117,7 +136,7 @@ class Neo4jService {
             MATCH (t2:Topic {name: $relatedName})
             MERGE (t1)-[:RELATED_TO {strength: 0.7}]->(t2)
             `,
-            { topicId: topic.id, relatedName: related }
+            { topicId: topic.id, relatedName: related },
           );
         }
       }
@@ -159,7 +178,7 @@ class Neo4jService {
             createdAt: article.createdAt,
             topicId: article.topicId,
             courseId: article.courseId,
-          }
+          },
         );
 
         // Create prerequisite relationships for articles
@@ -170,7 +189,7 @@ class Neo4jService {
             MATCH (a2:Article)-[:HAS_ARTICLE]-(t:Topic {name: $prereqName})
             MERGE (a1)-[:PREREQUISITE]->(a2)
             `,
-            { articleId: article.id, prereqName: prereq }
+            { articleId: article.id, prereqName: prereq },
           );
         }
       }
@@ -185,7 +204,7 @@ class Neo4jService {
   async getRecommendedArticles(
     courseId: string,
     completedArticleIds: string[],
-    limit: number = 5
+    limit: number = 5,
   ): Promise<string[]> {
     const session = this.getSession();
     try {
@@ -210,10 +229,10 @@ class Neo4jService {
           courseId,
           completedIds: completedArticleIds,
           limit: neo4j.int(limit),
-        }
+        },
       );
 
-      return result.records.map(record => record.get('articleId'));
+      return result.records.map((record) => record.get("articleId"));
     } finally {
       await session.close();
     }
@@ -233,10 +252,10 @@ class Neo4jService {
         ORDER BY depth DESC, a.createdAt ASC
         RETURN a.id as articleId
         `,
-        { courseId }
+        { courseId },
       );
 
-      return result.records.map(record => record.get('articleId'));
+      return result.records.map((record) => record.get("articleId"));
     } finally {
       await session.close();
     }
@@ -245,7 +264,10 @@ class Neo4jService {
   /**
    * Get related articles for an article
    */
-  async getRelatedArticles(articleId: string, limit: number = 5): Promise<string[]> {
+  async getRelatedArticles(
+    articleId: string,
+    limit: number = 5,
+  ): Promise<string[]> {
     const session = this.getSession();
     try {
       const result = await session.run(
@@ -259,10 +281,10 @@ class Neo4jService {
         {
           articleId,
           limit: neo4j.int(limit),
-        }
+        },
       );
 
-      return result.records.map(record => record.get('articleId'));
+      return result.records.map((record) => record.get("articleId"));
     } finally {
       await session.close();
     }
@@ -283,7 +305,7 @@ class Neo4jService {
         SET r.completedAt = datetime()
         RETURN r
         `,
-        { userId, articleId }
+        { userId, articleId },
       );
     } finally {
       await session.close();
@@ -293,7 +315,10 @@ class Neo4jService {
   /**
    * Get user's completed articles for a course
    */
-  async getCompletedArticles(userId: string, courseId: string): Promise<string[]> {
+  async getCompletedArticles(
+    userId: string,
+    courseId: string,
+  ): Promise<string[]> {
     const session = this.getSession();
     try {
       const result = await session.run(
@@ -301,10 +326,10 @@ class Neo4jService {
         MATCH (u:User {id: $userId})-[:COMPLETED]->(a:Article)<-[:CONTAINS]-(c:Course {id: $courseId})
         RETURN a.id as articleId
         `,
-        { userId, courseId }
+        { userId, courseId },
       );
 
-      return result.records.map(record => record.get('articleId'));
+      return result.records.map((record) => record.get("articleId"));
     } finally {
       await session.close();
     }
@@ -317,15 +342,29 @@ class Neo4jService {
     const session = this.getSession();
     try {
       // Create uniqueness constraints
-      await session.run('CREATE CONSTRAINT IF NOT EXISTS FOR (c:Course) REQUIRE c.id IS UNIQUE');
-      await session.run('CREATE CONSTRAINT IF NOT EXISTS FOR (t:Topic) REQUIRE t.id IS UNIQUE');
-      await session.run('CREATE CONSTRAINT IF NOT EXISTS FOR (a:Article) REQUIRE a.id IS UNIQUE');
-      await session.run('CREATE CONSTRAINT IF NOT EXISTS FOR (u:User) REQUIRE u.id IS UNIQUE');
+      await session.run(
+        "CREATE CONSTRAINT IF NOT EXISTS FOR (c:Course) REQUIRE c.id IS UNIQUE",
+      );
+      await session.run(
+        "CREATE CONSTRAINT IF NOT EXISTS FOR (t:Topic) REQUIRE t.id IS UNIQUE",
+      );
+      await session.run(
+        "CREATE CONSTRAINT IF NOT EXISTS FOR (a:Article) REQUIRE a.id IS UNIQUE",
+      );
+      await session.run(
+        "CREATE CONSTRAINT IF NOT EXISTS FOR (u:User) REQUIRE u.id IS UNIQUE",
+      );
 
       // Create indexes for faster queries
-      await session.run('CREATE INDEX IF NOT EXISTS FOR (c:Course) ON (c.category)');
-      await session.run('CREATE INDEX IF NOT EXISTS FOR (t:Topic) ON (t.importance)');
-      await session.run('CREATE INDEX IF NOT EXISTS FOR (a:Article) ON (a.difficulty)');
+      await session.run(
+        "CREATE INDEX IF NOT EXISTS FOR (c:Course) ON (c.category)",
+      );
+      await session.run(
+        "CREATE INDEX IF NOT EXISTS FOR (t:Topic) ON (t.importance)",
+      );
+      await session.run(
+        "CREATE INDEX IF NOT EXISTS FOR (a:Article) ON (a.difficulty)",
+      );
     } finally {
       await session.close();
     }

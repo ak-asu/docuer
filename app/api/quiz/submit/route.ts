@@ -1,6 +1,6 @@
 // API route for submitting quiz results
-import { NextRequest, NextResponse } from 'next/server';
-import { supermemoryService } from '@/lib/services/supermemory';
+import { NextRequest, NextResponse } from "next/server";
+import { supermemoryService } from "@/lib/services/supermemory";
 
 export async function POST(request: NextRequest) {
   try {
@@ -9,8 +9,8 @@ export async function POST(request: NextRequest) {
 
     if (!userId || !articleId || score === undefined || !totalQuestions) {
       return NextResponse.json(
-        { error: 'userId, articleId, score, and totalQuestions are required' },
-        { status: 400 }
+        { error: "userId, articleId, score, and totalQuestions are required" },
+        { status: 400 },
       );
     }
 
@@ -19,22 +19,26 @@ export async function POST(request: NextRequest) {
 
     // Track in Supermemory if configured
     if (supermemoryService.isConfigured()) {
-      await supermemoryService.trackQuizTaken(userId, articleId, percentageScore);
+      await supermemoryService.trackQuizTaken(
+        userId,
+        articleId,
+        percentageScore,
+      );
     }
 
     return NextResponse.json({
       success: true,
       percentageScore,
-      message: 'Quiz results recorded',
+      message: "Quiz results recorded",
     });
   } catch (error) {
-    console.error('Quiz submission error:', error);
+    console.error("Quiz submission error:", error);
     return NextResponse.json(
       {
-        error: 'Failed to submit quiz results',
-        details: error instanceof Error ? error.message : 'Unknown error',
+        error: "Failed to submit quiz results",
+        details: error instanceof Error ? error.message : "Unknown error",
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

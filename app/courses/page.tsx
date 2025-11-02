@@ -1,38 +1,70 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { Tabs, Tab, Card, CardBody, CardHeader, Button, Input, Textarea, Select, SelectItem, Progress } from '@heroui/react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, BookOpen, Edit, Trash2, Play } from 'lucide-react';
-import { z } from 'zod';
-import { useStore, Course } from '@/lib/store/useStore';
-import EditCourseModal from '@/app/components/EditCourseModal';
-import Layout from '@/app/components/Layout';
-import { sanitizeInput } from '@/lib/utils/seo';
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import {
+  Tabs,
+  Tab,
+  Card,
+  CardBody,
+  CardHeader,
+  Button,
+  Input,
+  Textarea,
+  Select,
+  SelectItem,
+  Progress,
+} from "@heroui/react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Plus, BookOpen, Edit, Trash2, Play } from "lucide-react";
+import { z } from "zod";
+import { useStore, Course } from "@/lib/store/useStore";
+import EditCourseModal from "@/app/components/EditCourseModal";
+import Layout from "@/app/components/Layout";
+import { sanitizeInput } from "@/lib/utils/seo";
 
 const courseSchema = z.object({
-  title: z.string().min(3, 'Title must be at least 3 characters'),
-  description: z.string().min(10, 'Description must be at least 10 characters'),
-  category: z.string().min(1, 'Please select a category'),
+  title: z.string().min(3, "Title must be at least 3 characters"),
+  description: z.string().min(10, "Description must be at least 10 characters"),
+  category: z.string().min(1, "Please select a category"),
 });
 
 type CourseFormData = z.infer<typeof courseSchema>;
 
 export default function CoursesPage() {
-  const { courses, addCourse, deleteCourse, createCourseFromUrl, isLoading, error } = useStore();
-  const [selectedTab, setSelectedTab] = useState('existing');
+  const router = useRouter();
+  const {
+    courses,
+    articles,
+    addCourse,
+    deleteCourse,
+    createCourseFromUrl,
+    isLoading,
+    error,
+  } = useStore();
+  const [selectedTab, setSelectedTab] = useState("existing");
   const [formData, setFormData] = useState<CourseFormData>({
-    title: '',
-    description: '',
-    category: '',
+    title: "",
+    description: "",
+    category: "",
   });
-  const [documentationUrl, setDocumentationUrl] = useState('');
-  const [errors, setErrors] = useState<Partial<Record<keyof CourseFormData, string>>>({});
+  const [documentationUrl, setDocumentationUrl] = useState("");
+  const [errors, setErrors] = useState<
+    Partial<Record<keyof CourseFormData, string>>
+  >({});
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
   const [showUrlInput, setShowUrlInput] = useState(false);
 
-  const categories = ['Frontend', 'Backend', 'DevOps', 'Data Science', 'Mobile', 'Design', 'Programming'];
+  const categories = [
+    "Frontend",
+    "Backend",
+    "DevOps",
+    "Data Science",
+    "Mobile",
+    "Design",
+    "Programming",
+  ];
 
   const handleInputChange = (field: keyof CourseFormData, value: string) => {
     // Sanitize input to prevent XSS
@@ -54,7 +86,12 @@ export default function CoursesPage() {
 
       if (showUrlInput && documentationUrl) {
         // Create course from documentation URL using API
-        await createCourseFromUrl(documentationUrl, formData.title, formData.description, formData.category);
+        await createCourseFromUrl(
+          documentationUrl,
+          formData.title,
+          formData.description,
+          formData.category,
+        );
       } else {
         // Create manual course (no URL)
         const newCourse = {
@@ -68,11 +105,11 @@ export default function CoursesPage() {
         addCourse(newCourse);
       }
 
-      setFormData({ title: '', description: '', category: '' });
-      setDocumentationUrl('');
+      setFormData({ title: "", description: "", category: "" });
+      setDocumentationUrl("");
       setShowUrlInput(false);
       setErrors({});
-      setSelectedTab('existing');
+      setSelectedTab("existing");
     } catch (err) {
       if (err instanceof z.ZodError) {
         const newErrors: Partial<Record<keyof CourseFormData, string>> = {};
@@ -89,254 +126,323 @@ export default function CoursesPage() {
     deleteCourse(id);
   };
 
+  const handleContinueCourse = (courseId: string) => {
+    const courseArticles = articles.filter((a) => a.courseId === courseId);
+    const nextArticle =
+      courseArticles.find((a) => !a.completed) || courseArticles[0];
+
+    if (nextArticle) {
+      router.push(`/courses/${courseId}/${nextArticle.id}`);
+    }
+  };
+
+  const handleCourseCardClick = (courseId: string) => {
+    router.push(`/courses/${courseId}`);
+  };
+
   return (
     <Layout>
-      <main className="min-h-screen bg-gray-50 p-4 md:p-8" role="main" aria-label="Courses management">
-      <div className="max-w-6xl mx-auto">
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-8"
-        >
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">My Courses</h1>
-          <p className="text-gray-600">Manage your learning journey</p>
-        </motion.div>
+      <main
+        className="min-h-screen bg-gray-50 p-4 md:p-8"
+        role="main"
+        aria-label="Courses management"
+      >
+        <div className="max-w-6xl mx-auto">
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-8"
+          >
+            <h1 className="text-4xl font-bold text-gray-900 mb-2">
+              My Courses
+            </h1>
+            <p className="text-gray-600">Manage your learning journey</p>
+          </motion.div>
 
-        <Card className="shadow-lg">
-          <CardBody className="p-0">
-            <Tabs
-              selectedKey={selectedTab}
-              onSelectionChange={(key) => setSelectedTab(key as string)}
-              className="w-full"
-              size="lg"
-            >
-              <Tab key="existing" title={
-                <div className="flex items-center gap-2">
-                  <BookOpen size={18} />
-                  <span>Existing Courses</span>
-                </div>
-              }>
-                <AnimatePresence mode="wait">
-                  <motion.div
-                    key="existing"
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -20 }}
-                    transition={{ duration: 0.3 }}
-                    className="p-6 space-y-4"
-                  >
-                    {courses.length === 0 ? (
-                      <div className="text-center py-12">
-                        <BookOpen className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                        <p className="text-gray-600 mb-4">No courses yet. Create your first course!</p>
-                        <Button
-                          color="primary"
-                          onPress={() => setSelectedTab('create')}
-                          startContent={<Plus size={18} />}
-                        >
-                          Create Course
-                        </Button>
-                      </div>
-                    ) : (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {courses.map((course, index) => (
-                          <motion.div
-                            key={course.id}
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ duration: 0.3, delay: index * 0.1 }}
+          <Card className="shadow-lg">
+            <CardBody className="p-0">
+              <Tabs
+                selectedKey={selectedTab}
+                onSelectionChange={(key) => setSelectedTab(key as string)}
+                className="w-full"
+                size="lg"
+              >
+                <Tab
+                  key="existing"
+                  title={
+                    <div className="flex items-center gap-2">
+                      <BookOpen size={18} />
+                      <span>Existing Courses</span>
+                    </div>
+                  }
+                >
+                  <AnimatePresence mode="wait">
+                    <motion.div
+                      key="existing"
+                      initial={{ opacity: 0, x: 20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -20 }}
+                      transition={{ duration: 0.3 }}
+                      className="p-6 space-y-4"
+                    >
+                      {courses.length === 0 ? (
+                        <div className="text-center py-12">
+                          <BookOpen className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                          <p className="text-gray-600 mb-4">
+                            No courses yet. Create your first course!
+                          </p>
+                          <Button
+                            color="primary"
+                            onPress={() => setSelectedTab("create")}
+                            startContent={<Plus size={18} />}
                           >
-                            <Card className="shadow-md hover:shadow-lg transition-shadow">
-                              <CardHeader className="flex flex-col items-start pb-2">
-                                <div className="flex justify-between items-start w-full mb-2">
-                                  <div className="flex-1">
-                                    <h3 className="text-lg font-semibold text-gray-900">{course.title}</h3>
-                                    <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
-                                      {course.category}
-                                    </span>
-                                  </div>
-                                </div>
-                                <p className="text-sm text-gray-600 mt-2">{course.description}</p>
-                              </CardHeader>
-                              <CardBody className="pt-0">
-                                <div className="space-y-3">
-                                  <div>
-                                    <div className="flex justify-between text-sm mb-1">
-                                      <span className="text-gray-600">Progress</span>
-                                      <span className="font-semibold text-gray-900">{course.progress}%</span>
+                            Create Course
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {courses.map((course, index) => (
+                            <motion.div
+                              key={course.id}
+                              initial={{ opacity: 0, y: 20 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              transition={{ duration: 0.3, delay: index * 0.1 }}
+                              onClick={() => handleCourseCardClick(course.id)}
+                              className="cursor-pointer"
+                            >
+                              <Card className="shadow-md hover:shadow-lg transition-shadow">
+                                <CardHeader className="flex flex-col items-start pb-2">
+                                  <div className="flex justify-between items-start w-full mb-2">
+                                    <div className="flex-1">
+                                      <h3 className="text-lg font-semibold text-gray-900">
+                                        {course.title}
+                                      </h3>
+                                      <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
+                                        {course.category}
+                                      </span>
                                     </div>
-                                    <Progress value={course.progress} color="primary" size="sm" />
                                   </div>
-                                  <p className="text-sm text-gray-600">
-                                    {course.completedArticles} of {course.totalArticles} articles completed
+                                  <p className="text-sm text-gray-600 mt-2">
+                                    {course.description}
                                   </p>
-                                  <div className="flex gap-2 pt-2">
-                                    <Button
-                                      color="primary"
-                                      size="sm"
-                                      startContent={<Play size={16} />}
-                                      className="flex-1"
+                                </CardHeader>
+                                <CardBody className="pt-0">
+                                  <div className="space-y-3">
+                                    <div>
+                                      <div className="flex justify-between text-sm mb-1">
+                                        <span className="text-gray-600">
+                                          Progress
+                                        </span>
+                                        <span className="font-semibold text-gray-900">
+                                          {course.progress}%
+                                        </span>
+                                      </div>
+                                      <Progress
+                                        value={course.progress}
+                                        color="primary"
+                                        size="sm"
+                                      />
+                                    </div>
+                                    <p className="text-sm text-gray-600">
+                                      {course.completedArticles} of{" "}
+                                      {course.totalArticles} articles completed
+                                    </p>
+                                    <div
+                                      className="flex gap-2 pt-2"
+                                      onClick={(e) => e.stopPropagation()}
                                     >
-                                      Continue
-                                    </Button>
-                                    <Button
-                                      variant="flat"
-                                      size="sm"
-                                      isIconOnly
-                                      onPress={() => handleEditCourse(course)}
-                                      startContent={<Edit size={16} />}
-                                      aria-label="Edit course"
-                                    />
-                                    <Button
-                                      color="danger"
-                                      variant="flat"
-                                      size="sm"
-                                      isIconOnly
-                                      onPress={() => handleDeleteCourse(course.id)}
-                                      startContent={<Trash2 size={16} />}
-                                    />
+                                      <Button
+                                        color="primary"
+                                        size="sm"
+                                        startContent={<Play size={16} />}
+                                        className="flex-1"
+                                        onPress={() =>
+                                          handleContinueCourse(course.id)
+                                        }
+                                      >
+                                        Continue
+                                      </Button>
+                                      <Button
+                                        variant="flat"
+                                        size="sm"
+                                        isIconOnly
+                                        onPress={() => handleEditCourse(course)}
+                                        startContent={<Edit size={16} />}
+                                        aria-label="Edit course"
+                                      />
+                                      <Button
+                                        color="danger"
+                                        variant="flat"
+                                        size="sm"
+                                        isIconOnly
+                                        onPress={() =>
+                                          handleDeleteCourse(course.id)
+                                        }
+                                        startContent={<Trash2 size={16} />}
+                                        aria-label="Delete course"
+                                      />
+                                    </div>
                                   </div>
-                                </div>
-                              </CardBody>
-                            </Card>
-                          </motion.div>
-                        ))}
-                      </div>
-                    )}
-                  </motion.div>
-                </AnimatePresence>
-              </Tab>
-
-              <Tab key="create" title={
-                <div className="flex items-center gap-2">
-                  <Plus size={18} />
-                  <span>Create New</span>
-                </div>
-              }>
-                <AnimatePresence mode="wait">
-                  <motion.div
-                    key="create"
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -20 }}
-                    transition={{ duration: 0.3 }}
-                    className="p-6"
-                  >
-                    <div className="max-w-2xl mx-auto space-y-6">
-                      <div>
-                        <h2 className="text-2xl font-bold text-gray-900 mb-2">Create New Course</h2>
-                        <p className="text-gray-600">Build a personalized learning path</p>
-                      </div>
-
-                      <Input
-                        label="Course Title"
-                        placeholder="e.g., Advanced React Patterns"
-                        value={formData.title}
-                        onChange={(e) => handleInputChange('title', e.target.value)}
-                        isInvalid={!!errors.title}
-                        errorMessage={errors.title}
-                        size="lg"
-                      />
-
-                      <Textarea
-                        label="Description"
-                        placeholder="Describe what students will learn in this course..."
-                        value={formData.description}
-                        onChange={(e) => handleInputChange('description', e.target.value)}
-                        isInvalid={!!errors.description}
-                        errorMessage={errors.description}
-                        minRows={4}
-                      />
-
-                      <Select
-                        label="Category"
-                        placeholder="Select a category"
-                        selectedKeys={formData.category ? [formData.category] : []}
-                        onChange={(e) => handleInputChange('category', e.target.value)}
-                        isInvalid={!!errors.category}
-                        errorMessage={errors.category}
-                      >
-                        {categories.map((category) => (
-                          <SelectItem key={category}>
-                            {category}
-                          </SelectItem>
-                        ))}
-                      </Select>
-
-                      <div className="border-t pt-4">
-                        <Button
-                          variant="light"
-                          size="sm"
-                          onPress={() => setShowUrlInput(!showUrlInput)}
-                          className="mb-4"
-                        >
-                          {showUrlInput ? 'Hide' : 'Add'} Documentation URL (AI-powered)
-                        </Button>
-
-                        {showUrlInput && (
-                          <motion.div
-                            initial={{ opacity: 0, height: 0 }}
-                            animate={{ opacity: 1, height: 'auto' }}
-                            exit={{ opacity: 0, height: 0 }}
-                          >
-                            <Input
-                              label="Documentation URL"
-                              placeholder="https://react.dev/learn"
-                              value={documentationUrl}
-                              onChange={(e) => setDocumentationUrl(e.target.value)}
-                              description="We'll automatically scrape and generate learning content from this documentation"
-                              size="lg"
-                            />
-                          </motion.div>
-                        )}
-                      </div>
-
-                      {error && (
-                        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
-                          {error}
+                                </CardBody>
+                              </Card>
+                            </motion.div>
+                          ))}
                         </div>
                       )}
+                    </motion.div>
+                  </AnimatePresence>
+                </Tab>
 
-                      <div className="flex gap-3 pt-4">
-                        <Button
-                          color="primary"
-                          size="lg"
-                          onPress={handleCreateCourse}
-                          startContent={<Plus size={18} />}
-                          isLoading={isLoading}
-                          isDisabled={isLoading}
-                        >
-                          {isLoading ? 'Creating...' : 'Create Course'}
-                        </Button>
-                        <Button
-                          variant="flat"
-                          size="lg"
-                          onPress={() => {
-                            setFormData({ title: '', description: '', category: '' });
-                            setErrors({});
-                          }}
-                        >
-                          Clear Form
-                        </Button>
-                      </div>
+                <Tab
+                  key="create"
+                  title={
+                    <div className="flex items-center gap-2">
+                      <Plus size={18} />
+                      <span>Create New</span>
                     </div>
-                  </motion.div>
-                </AnimatePresence>
-              </Tab>
-            </Tabs>
-          </CardBody>
-        </Card>
-      </div>
+                  }
+                >
+                  <AnimatePresence mode="wait">
+                    <motion.div
+                      key="create"
+                      initial={{ opacity: 0, x: 20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -20 }}
+                      transition={{ duration: 0.3 }}
+                      className="p-6"
+                    >
+                      <div className="max-w-2xl mx-auto space-y-6">
+                        <div>
+                          <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                            Create New Course
+                          </h2>
+                          <p className="text-gray-600">
+                            Build a personalized learning path
+                          </p>
+                        </div>
 
-      <EditCourseModal
-        isOpen={isEditModalOpen}
-        onClose={() => {
-          setIsEditModalOpen(false);
-          setSelectedCourse(null);
-        }}
-        course={selectedCourse}
-      />
-    </main>
+                        <Input
+                          label="Course Title"
+                          placeholder="e.g., Advanced React Patterns"
+                          value={formData.title}
+                          onChange={(e) =>
+                            handleInputChange("title", e.target.value)
+                          }
+                          isInvalid={!!errors.title}
+                          errorMessage={errors.title}
+                          size="lg"
+                        />
+
+                        <Textarea
+                          label="Description"
+                          placeholder="Describe what students will learn in this course..."
+                          value={formData.description}
+                          onChange={(e) =>
+                            handleInputChange("description", e.target.value)
+                          }
+                          isInvalid={!!errors.description}
+                          errorMessage={errors.description}
+                          minRows={4}
+                        />
+
+                        <Select
+                          label="Category"
+                          placeholder="Select a category"
+                          selectedKeys={
+                            formData.category ? [formData.category] : []
+                          }
+                          onChange={(e) =>
+                            handleInputChange("category", e.target.value)
+                          }
+                          isInvalid={!!errors.category}
+                          errorMessage={errors.category}
+                        >
+                          {categories.map((category) => (
+                            <SelectItem key={category}>{category}</SelectItem>
+                          ))}
+                        </Select>
+
+                        <div className="border-t pt-4">
+                          <Button
+                            variant="light"
+                            size="sm"
+                            onPress={() => setShowUrlInput(!showUrlInput)}
+                            className="mb-4"
+                          >
+                            {showUrlInput ? "Hide" : "Add"} Documentation URL
+                            (AI-powered)
+                          </Button>
+
+                          {showUrlInput && (
+                            <motion.div
+                              initial={{ opacity: 0, height: 0 }}
+                              animate={{ opacity: 1, height: "auto" }}
+                              exit={{ opacity: 0, height: 0 }}
+                            >
+                              <Input
+                                label="Documentation URL"
+                                placeholder="https://react.dev/learn"
+                                value={documentationUrl}
+                                onChange={(e) =>
+                                  setDocumentationUrl(e.target.value)
+                                }
+                                description="We'll automatically scrape and generate learning content from this documentation"
+                                size="lg"
+                              />
+                            </motion.div>
+                          )}
+                        </div>
+
+                        {error && (
+                          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+                            {error}
+                          </div>
+                        )}
+
+                        <div className="flex gap-3 pt-4">
+                          <Button
+                            color="primary"
+                            size="lg"
+                            onPress={handleCreateCourse}
+                            startContent={<Plus size={18} />}
+                            isLoading={isLoading}
+                            isDisabled={isLoading}
+                          >
+                            {isLoading ? "Creating..." : "Create Course"}
+                          </Button>
+                          <Button
+                            variant="flat"
+                            size="lg"
+                            onPress={() => {
+                              setFormData({
+                                title: "",
+                                description: "",
+                                category: "",
+                              });
+                              setErrors({});
+                            }}
+                          >
+                            Clear Form
+                          </Button>
+                        </div>
+                      </div>
+                    </motion.div>
+                  </AnimatePresence>
+                </Tab>
+              </Tabs>
+            </CardBody>
+          </Card>
+        </div>
+
+        <EditCourseModal
+          isOpen={isEditModalOpen}
+          onClose={() => {
+            setIsEditModalOpen(false);
+            setSelectedCourse(null);
+          }}
+          course={selectedCourse}
+        />
+      </main>
     </Layout>
   );
 }

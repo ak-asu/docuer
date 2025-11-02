@@ -1,7 +1,7 @@
 // API route for marking an article as completed
-import { NextRequest, NextResponse } from 'next/server';
-import { neo4jService } from '@/lib/services/neo4j';
-import { supermemoryService } from '@/lib/services/supermemory';
+import { NextRequest, NextResponse } from "next/server";
+import { neo4jService } from "@/lib/services/neo4j";
+import { supermemoryService } from "@/lib/services/supermemory";
 
 export async function POST(request: NextRequest) {
   try {
@@ -10,8 +10,8 @@ export async function POST(request: NextRequest) {
 
     if (!userId || !articleId) {
       return NextResponse.json(
-        { error: 'userId and articleId are required' },
-        { status: 400 }
+        { error: "userId and articleId are required" },
+        { status: 400 },
       );
     }
 
@@ -30,16 +30,16 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: 'Article marked as completed',
+      message: "Article marked as completed",
     });
   } catch (error) {
-    console.error('Article completion error:', error);
+    console.error("Article completion error:", error);
     return NextResponse.json(
       {
-        error: 'Failed to mark article as completed',
-        details: error instanceof Error ? error.message : 'Unknown error',
+        error: "Failed to mark article as completed",
+        details: error instanceof Error ? error.message : "Unknown error",
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

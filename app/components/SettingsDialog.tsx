@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import {
   Modal,
@@ -10,14 +10,14 @@ import {
   Switch,
   Select,
   SelectItem,
-} from '@heroui/react';
-import { motion } from 'framer-motion';
-import { z } from 'zod';
-import { useState } from 'react';
-import { useStore } from '@/lib/store/useStore';
+} from "@heroui/react";
+import { motion } from "framer-motion";
+import { z } from "zod";
+import { useState } from "react";
+import { useStore } from "@/lib/store/useStore";
 
 const settingsSchema = z.object({
-  theme: z.enum(['light', 'dark']),
+  theme: z.enum(["light", "dark"]),
   notifications: z.boolean(),
   courseReminders: z.boolean(),
   language: z.string().min(2),
@@ -28,7 +28,10 @@ interface SettingsDialogProps {
   onClose: () => void;
 }
 
-export default function SettingsDialog({ isOpen, onClose }: SettingsDialogProps) {
+export default function SettingsDialog({
+  isOpen,
+  onClose,
+}: SettingsDialogProps) {
   const { userPreferences, updateUserPreferences } = useStore();
   const [settings, setSettings] = useState(userPreferences);
   const [error, setError] = useState<string | null>(null);
@@ -63,7 +66,9 @@ export default function SettingsDialog({ isOpen, onClose }: SettingsDialogProps)
       <ModalContent>
         <ModalHeader className="flex flex-col gap-1">
           <h2 className="text-2xl font-bold">Settings</h2>
-          <p className="text-sm text-gray-500 font-normal">Customize your learning experience</p>
+          <p className="text-sm text-gray-500 font-normal">
+            Customize your learning experience
+          </p>
         </ModalHeader>
         <ModalBody>
           <motion.div
@@ -76,14 +81,15 @@ export default function SettingsDialog({ isOpen, onClose }: SettingsDialogProps)
               <Select
                 label="Theme"
                 selectedKeys={[settings.theme]}
-                onChange={(e) => setSettings({ ...settings, theme: e.target.value as 'light' | 'dark' })}
+                onChange={(e) =>
+                  setSettings({
+                    ...settings,
+                    theme: e.target.value as "light" | "dark",
+                  })
+                }
               >
-                <SelectItem key="light">
-                  Light
-                </SelectItem>
-                <SelectItem key="dark">
-                  Dark
-                </SelectItem>
+                <SelectItem key="light">Light</SelectItem>
+                <SelectItem key="dark">Dark</SelectItem>
               </Select>
             </div>
 
@@ -106,7 +112,9 @@ export default function SettingsDialog({ isOpen, onClose }: SettingsDialogProps)
               <div className="flex justify-between items-center">
                 <div>
                   <p className="font-medium">Course Reminders</p>
-                  <p className="text-sm text-gray-500">Get reminded to continue your courses</p>
+                  <p className="text-sm text-gray-500">
+                    Get reminded to continue your courses
+                  </p>
                 </div>
                 <Switch
                   isSelected={settings.courseReminders}
@@ -122,20 +130,14 @@ export default function SettingsDialog({ isOpen, onClose }: SettingsDialogProps)
               <Select
                 label="Language"
                 selectedKeys={[settings.language]}
-                onChange={(e) => setSettings({ ...settings, language: e.target.value })}
+                onChange={(e) =>
+                  setSettings({ ...settings, language: e.target.value })
+                }
               >
-                <SelectItem key="en">
-                  English
-                </SelectItem>
-                <SelectItem key="es">
-                  Spanish
-                </SelectItem>
-                <SelectItem key="fr">
-                  French
-                </SelectItem>
-                <SelectItem key="de">
-                  German
-                </SelectItem>
+                <SelectItem key="en">English</SelectItem>
+                <SelectItem key="es">Spanish</SelectItem>
+                <SelectItem key="fr">French</SelectItem>
+                <SelectItem key="de">German</SelectItem>
               </Select>
             </div>
 

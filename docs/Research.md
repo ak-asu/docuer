@@ -1,17 +1,18 @@
 Here’s a **comprehensive project document** summarizing your overall research, requirements, and flow for your adaptive documentation course creator. This covers everything discussed in our chat and your chosen technologies and patterns:
 
-***
+---
 
-# Project: Adaptive Documentation Course Creator  
-*Interactive knowledge graph-driven learning platform for technical documentation*
+# Project: Adaptive Documentation Course Creator
 
-***
+_Interactive knowledge graph-driven learning platform for technical documentation_
+
+---
 
 ## **Vision & Overview**
 
 Build an AI-powered platform that crawls entire documentation sites, intelligently extracts and organizes knowledge into a micro-article knowledge graph, and delivers **short, interconnected learning modules** in a swipeable feed (à la TikTok Shorts). The app is **adaptive:** it responds in real-time to user preferences, progression, and actions (skipping, deep-diving), and constantly adjusts the learning path, leveraging long-term memory and graph traversal algorithms to optimize mastery.
 
-***
+---
 
 ## **Core User Experience & Features**
 
@@ -28,7 +29,7 @@ Build an AI-powered platform that crawls entire documentation sites, intelligent
 - **Course Management:**  
   Users can view their active courses, create new ones from any documentation link, and track detailed progress.
 
-***
+---
 
 ## **Backend Tech Stack & Architecture**
 
@@ -55,7 +56,7 @@ Build an AI-powered platform that crawls entire documentation sites, intelligent
 - **API Layer**
   - Next.js backend (API routes) to serve content, user data, progress, course management, and handle integration with Neo4j/Supermemory/Cohere/Gemini.
 
-***
+---
 
 ## **Frontend UX/UI Platform (already done)**
 
@@ -63,7 +64,7 @@ Build an AI-powered platform that crawls entire documentation sites, intelligent
 - Onboarding, settings dialog, user detail/progress, course tabs, shorts-style article feed with all required interactive elements.
 - SEO, security, mobile responsiveness, accessibility all prioritized.
 
-***
+---
 
 ## **End-to-End System Flow**
 
@@ -87,7 +88,7 @@ Build an AI-powered platform that crawls entire documentation sites, intelligent
    - Live updates to path and optional suggested content.
    - Supermemory continuously updates the adaptive model per user.
 
-***
+---
 
 ## **Research-backed Design Principles**
 
@@ -102,7 +103,7 @@ Build an AI-powered platform that crawls entire documentation sites, intelligent
 - **Persistent Memory:**  
   Supermemory graph enables lifelong learning, tracking, personalized reminders, and evolving content recommendations.
 
-***
+---
 
 ## **Challenges & Future Directions**
 
@@ -114,7 +115,7 @@ Build an AI-powered platform that crawls entire documentation sites, intelligent
 - **Gamification & Engagement:**  
   Progress tracking, achievements, reminders, social/cart features.
 
-***
+---
 
 ## **Integrations, Extensibility, and APIs**
 
@@ -124,7 +125,7 @@ Build an AI-powered platform that crawls entire documentation sites, intelligent
 - **Testing & DevOps:**  
   End-to-end, unit, performance, and UX tests; CI/CD for rapid iteration and production deployment.
 
-***
+---
 
 ## **Conclusion**
 

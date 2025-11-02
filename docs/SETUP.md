@@ -5,6 +5,7 @@ This guide will help you set up and run Docuer, an AI-powered adaptive documenta
 ## Overview
 
 Docuer transforms technical documentation into bite-sized, TikTok-style learning experiences using:
+
 - **Firecrawl** for web scraping
 - **Cohere** for topic extraction
 - **Google Gemini** for content generation
@@ -20,6 +21,7 @@ Docuer transforms technical documentation into bite-sized, TikTok-style learning
 ## Installation
 
 1. **Install dependencies:**
+
    ```bash
    npm install
    ```
@@ -35,11 +37,13 @@ Docuer transforms technical documentation into bite-sized, TikTok-style learning
 ### 1. Firecrawl (Required for web scraping)
 
 **Get your API key:**
+
 1. Visit [https://firecrawl.dev](https://firecrawl.dev)
 2. Sign up for an account
 3. Navigate to your dashboard to get your API key
 
 **Add to `.env.local`:**
+
 ```env
 FIRECRAWL_API_KEY=your_firecrawl_api_key_here
 ```
@@ -47,11 +51,13 @@ FIRECRAWL_API_KEY=your_firecrawl_api_key_here
 ### 2. Cohere (Required for topic extraction)
 
 **Get your API key:**
+
 1. Visit [https://cohere.com](https://cohere.com)
 2. Sign up for a free account
 3. Go to API Keys section in your dashboard
 
 **Add to `.env.local`:**
+
 ```env
 COHERE_API_KEY=your_cohere_api_key_here
 ```
@@ -59,12 +65,14 @@ COHERE_API_KEY=your_cohere_api_key_here
 ### 3. Google Gemini (Required for article generation)
 
 **Get your API key:**
+
 1. Visit [https://ai.google.dev](https://ai.google.dev)
 2. Click "Get API key in Google AI Studio"
 3. Sign in with your Google account
 4. Create a new API key
 
 **Add to `.env.local`:**
+
 ```env
 GEMINI_API_KEY=your_gemini_api_key_here
 ```
@@ -72,11 +80,13 @@ GEMINI_API_KEY=your_gemini_api_key_here
 ### 4. Neo4j (Optional - for knowledge graph)
 
 **Set up Neo4j database:**
+
 1. Visit [https://neo4j.com/cloud/aura/](https://neo4j.com/cloud/aura/)
 2. Sign up and create a free AuraDB instance
 3. Save your connection URI, username, and password
 
 **Add to `.env.local`:**
+
 ```env
 NEO4J_URI=neo4j+s://your-instance.neo4j.io
 NEO4J_USERNAME=neo4j
@@ -89,10 +99,12 @@ The schema will be automatically initialized when you first use the Neo4j servic
 ### 5. Supermemory (Optional - for user behavior tracking)
 
 **Get your API key:**
+
 1. Visit [https://supermemory.ai](https://supermemory.ai)
 2. Sign up and get your API key from the dashboard
 
 **Add to `.env.local`:**
+
 ```env
 SUPERMEMORY_API_KEY=your_supermemory_api_key_here
 SUPERMEMORY_BASE_URL=https://api.supermemory.ai
@@ -101,6 +113,7 @@ SUPERMEMORY_BASE_URL=https://api.supermemory.ai
 ## Running the Application
 
 1. **Development mode:**
+
    ```bash
    npm run dev
    ```
@@ -157,6 +170,7 @@ SUPERMEMORY_BASE_URL=https://api.supermemory.ai
 ## Architecture Overview
 
 ### Frontend (Next.js 16 + React 19)
+
 - **Framework:** Next.js App Router
 - **UI Library:** HeroUI (NextUI fork)
 - **State Management:** Zustand with persistence
@@ -164,6 +178,7 @@ SUPERMEMORY_BASE_URL=https://api.supermemory.ai
 - **Validation:** Zod
 
 ### Backend (Next.js API Routes)
+
 - **Location:** `app/api/`
 - **Routes:**
   - `POST /api/courses/create` - Create course from URL
@@ -175,6 +190,7 @@ SUPERMEMORY_BASE_URL=https://api.supermemory.ai
   - `GET /api/analytics/user` - Get user analytics
 
 ### Services (lib/services/)
+
 - **Firecrawl:** Web scraping and crawling
 - **Cohere:** Topic extraction and analysis
 - **Gemini:** Article and quiz generation
@@ -186,33 +202,39 @@ SUPERMEMORY_BASE_URL=https://api.supermemory.ai
 ### Adjusting Scraping Limits
 
 In `app/api/courses/create/route.ts`, you can adjust:
+
 ```typescript
-maxPages: 50  // Increase for larger documentation sites
+maxPages: 50; // Increase for larger documentation sites
 ```
 
 ### Changing AI Models
 
 In service files, you can change models:
+
 - **Cohere:** `command-r-plus` (in `lib/services/cohere.ts`)
 - **Gemini:** `gemini-2.0-flash-exp` (in `lib/services/gemini.ts`)
 
 ## Troubleshooting
 
 ### "Firecrawl is not configured" error
+
 - Make sure `FIRECRAWL_API_KEY` is set in `.env.local`
 - Restart the development server after adding environment variables
 
 ### Course creation takes too long
+
 - The first course creation may take 30-60 seconds
 - This is normal as it's scraping, analyzing, and generating content
 - Check your API rate limits if it fails
 
 ### Neo4j connection errors
+
 - Verify your connection URI format: `neo4j+s://xxx.neo4j.io`
 - Check username and password are correct
 - Neo4j is optional - the app works without it
 
 ### Quiz not generating
+
 - Ensure Gemini API key is configured
 - Check article content is not empty
 - Try regenerating the quiz
@@ -220,6 +242,7 @@ In service files, you can change models:
 ## Development
 
 ### File Structure
+
 ```
 docuer/
 ├── app/
@@ -254,19 +277,23 @@ docuer/
 ## Production Deployment
 
 ### Environment Variables
+
 Make sure all required environment variables are set in your production environment.
 
 ### Build
+
 ```bash
 npm run build
 ```
 
 ### Start
+
 ```bash
 npm start
 ```
 
 ### Recommended Hosting
+
 - **Vercel:** Best for Next.js apps (zero-config)
 - **Railway:** Good for apps with databases
 - **Netlify:** Alternative option
@@ -274,6 +301,7 @@ npm start
 ## Cost Estimation
 
 ### Free Tier Limits
+
 - **Firecrawl:** 500 requests/month
 - **Cohere:** 100 requests/minute (free trial)
 - **Gemini:** 60 requests/minute (free tier)
@@ -281,6 +309,7 @@ npm start
 - **Supermemory:** Check their pricing page
 
 ### Per Course Creation
+
 - 1-5 Firecrawl requests (depending on documentation size)
 - 1 Cohere request (topic extraction)
 - N Gemini requests (N = number of topics, typically 5-15)
@@ -288,6 +317,7 @@ npm start
 ## Support
 
 For issues or questions:
+
 1. Check this documentation
 2. Review the code comments
 3. Check API documentation for external services

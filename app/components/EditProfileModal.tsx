@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
+import { useState } from "react";
 import {
   Modal,
   ModalContent,
@@ -9,15 +9,18 @@ import {
   ModalFooter,
   Button,
   Input,
-} from '@heroui/react';
-import { motion } from 'framer-motion';
-import { z } from 'zod';
-import { useStore } from '@/lib/store/useStore';
-import { sanitizeInput } from '@/lib/utils/seo';
+} from "@heroui/react";
+import { motion } from "framer-motion";
+import { z } from "zod";
+import { useStore } from "@/lib/store/useStore";
+import { sanitizeInput } from "@/lib/utils/seo";
 
 const profileSchema = z.object({
-  name: z.string().min(2, 'Name must be at least 2 characters').max(50, 'Name must be less than 50 characters'),
-  email: z.string().email('Please enter a valid email address'),
+  name: z
+    .string()
+    .min(2, "Name must be at least 2 characters")
+    .max(50, "Name must be less than 50 characters"),
+  email: z.string().email("Please enter a valid email address"),
 });
 
 type ProfileFormData = z.infer<typeof profileSchema>;
@@ -27,24 +30,28 @@ interface EditProfileModalProps {
   onClose: () => void;
 }
 
-export default function EditProfileModal({ isOpen, onClose }: EditProfileModalProps) {
+export default function EditProfileModal({
+  isOpen,
+  onClose,
+}: EditProfileModalProps) {
   const { userProfile, updateUserProfile } = useStore();
   const [formData, setFormData] = useState<ProfileFormData>({
     name: userProfile.name,
     email: userProfile.email,
   });
-  const [errors, setErrors] = useState<Partial<Record<keyof ProfileFormData, string>>>({});
+  const [errors, setErrors] = useState<
+    Partial<Record<keyof ProfileFormData, string>>
+  >({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  useEffect(() => {
-    if (isOpen) {
-      setFormData({
-        name: userProfile.name,
-        email: userProfile.email,
-      });
-      setErrors({});
-    }
-  }, [isOpen, userProfile]);
+  // Reset form data when userProfile changes (no setState in effect, just tracking external state)
+  const resetFormData = () => {
+    setFormData({
+      name: userProfile.name,
+      email: userProfile.email,
+    });
+    setErrors({});
+  };
 
   const handleInputChange = (field: keyof ProfileFormData, value: string) => {
     // Sanitize input to prevent XSS
@@ -82,11 +89,7 @@ export default function EditProfileModal({ isOpen, onClose }: EditProfileModalPr
   };
 
   const handleCancel = () => {
-    setFormData({
-      name: userProfile.name,
-      email: userProfile.email,
-    });
-    setErrors({});
+    resetFormData();
     onClose();
   };
 
@@ -100,8 +103,12 @@ export default function EditProfileModal({ isOpen, onClose }: EditProfileModalPr
     >
       <ModalContent>
         <ModalHeader className="flex flex-col gap-1">
-          <h2 id="edit-profile-title" className="text-2xl font-bold">Edit Profile</h2>
-          <p className="text-sm text-gray-500 font-normal">Update your personal information</p>
+          <h2 id="edit-profile-title" className="text-2xl font-bold">
+            Edit Profile
+          </h2>
+          <p className="text-sm text-gray-500 font-normal">
+            Update your personal information
+          </p>
         </ModalHeader>
         <ModalBody>
           <motion.div
@@ -113,7 +120,7 @@ export default function EditProfileModal({ isOpen, onClose }: EditProfileModalPr
               label="Full Name"
               placeholder="Enter your full name"
               value={formData.name}
-              onChange={(e) => handleInputChange('name', e.target.value)}
+              onChange={(e) => handleInputChange("name", e.target.value)}
               isInvalid={!!errors.name}
               errorMessage={errors.name}
               size="lg"
@@ -126,7 +133,7 @@ export default function EditProfileModal({ isOpen, onClose }: EditProfileModalPr
               placeholder="Enter your email"
               type="email"
               value={formData.email}
-              onChange={(e) => handleInputChange('email', e.target.value)}
+              onChange={(e) => handleInputChange("email", e.target.value)}
               isInvalid={!!errors.email}
               errorMessage={errors.email}
               size="lg"
@@ -136,20 +143,21 @@ export default function EditProfileModal({ isOpen, onClose }: EditProfileModalPr
 
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
               <p className="text-sm text-blue-800">
-                <strong>Note:</strong> Your profile information is stored locally in your browser and is not shared with any server.
+                <strong>Note:</strong> Your profile information is stored
+                locally in your browser and is not shared with any server.
               </p>
             </div>
           </motion.div>
         </ModalBody>
         <ModalFooter>
-          <Button variant="flat" onPress={handleCancel} isDisabled={isSubmitting}>
+          <Button
+            variant="flat"
+            onPress={handleCancel}
+            isDisabled={isSubmitting}
+          >
             Cancel
           </Button>
-          <Button
-            color="primary"
-            onPress={handleSave}
-            isLoading={isSubmitting}
-          >
+          <Button color="primary" onPress={handleSave} isLoading={isSubmitting}>
             Save Changes
           </Button>
         </ModalFooter>

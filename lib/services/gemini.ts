@@ -1,6 +1,11 @@
 // Gemini service for article generation and content chunking
-import { GoogleGenAI } from '@google/genai';
-import type { ExtractedTopic, GeneratedArticle, QuizQuestion, ScrapedContent } from '../types';
+import { GoogleGenAI } from "@google/genai";
+import type {
+  ExtractedTopic,
+  GeneratedArticle,
+  QuizQuestion,
+  ScrapedContent,
+} from "../types";
 
 class GeminiService {
   private client: GoogleGenAI | null = null;
@@ -25,17 +30,19 @@ class GeminiService {
   async generateArticle(
     topic: ExtractedTopic,
     relatedContent: ScrapedContent[],
-    courseId: string
+    courseId: string,
   ): Promise<GeneratedArticle> {
     if (!this.client) {
-      throw new Error('Gemini is not configured. Please add GEMINI_API_KEY to your environment variables.');
+      throw new Error(
+        "Gemini is not configured. Please add GEMINI_API_KEY to your environment variables.",
+      );
     }
 
     try {
       // Combine relevant content
       const contentText = relatedContent
-        .map(c => c.content.substring(0, 3000))
-        .join('\n\n');
+        .map((c) => c.content.substring(0, 3000))
+        .join("\n\n");
 
       const prompt = `Create a bite-sized, engaging learning article about "${topic.name}" for a TikTok-style learning app.
 
@@ -56,10 +63,10 @@ Requirements:
 Return the article content only (no titles, just the body text).`;
 
       const result = await this.client.models.generateContent({
-        model: 'gemini-2.0-flash-exp',
+        model: "gemini-2.0-flash-exp",
         contents: prompt,
       });
-      const content = result.text || '';
+      const content = result.text || "";
 
       // Estimate reading time (avg 200 words per minute)
       const wordCount = content.split(/\s+/).length;
@@ -79,7 +86,7 @@ Return the article content only (no titles, just the body text).`;
         createdAt: new Date().toISOString(),
       };
     } catch (error) {
-      console.error('Gemini article generation error:', error);
+      console.error("Gemini article generation error:", error);
       throw new Error(`Failed to generate article for topic: ${topic.name}`);
     }
   }
@@ -89,7 +96,9 @@ Return the article content only (no titles, just the body text).`;
    */
   async generateQuiz(article: GeneratedArticle): Promise<QuizQuestion[]> {
     if (!this.client) {
-      throw new Error('Gemini is not configured. Please add GEMINI_API_KEY to your environment variables.');
+      throw new Error(
+        "Gemini is not configured. Please add GEMINI_API_KEY to your environment variables.",
+      );
     }
 
     try {
@@ -116,30 +125,36 @@ Return as JSON array:
 ]`;
 
       const result = await this.client.models.generateContent({
-        model: 'gemini-2.0-flash-exp',
+        model: "gemini-2.0-flash-exp",
         contents: prompt,
       });
-      const text = result.text || '';
+      const text = result.text || "";
 
       // Extract JSON from the response
       const jsonMatch = text.match(/\[[\s\S]*\]/);
       if (!jsonMatch) {
-        throw new Error('Failed to extract quiz questions from response');
+        throw new Error("Failed to extract quiz questions from response");
       }
 
-      const questions = JSON.parse(jsonMatch[0]);
+      const questions = JSON.parse(jsonMatch[0]) as Array<{
+        question: string;
+        options: string[];
+        correctAnswer: number;
+        explanation: string;
+        difficulty: "easy" | "medium" | "hard";
+      }>;
 
-      return questions.map((q: any, index: number) => ({
+      return questions.map((q, index: number) => ({
         id: `quiz-${article.id}-${index}`,
         question: q.question,
         options: q.options,
         correctAnswer: q.correctAnswer,
         explanation: q.explanation,
         articleId: article.id,
-        difficulty: q.difficulty as 'easy' | 'medium' | 'hard',
+        difficulty: q.difficulty,
       }));
     } catch (error) {
-      console.error('Gemini quiz generation error:', error);
+      console.error("Gemini quiz generation error:", error);
       throw new Error(`Failed to generate quiz for article: ${article.title}`);
     }
   }
@@ -147,9 +162,14 @@ Return as JSON array:
   /**
    * Chunk large documentation into smaller, digestible pieces
    */
-  async chunkContent(content: string, maxChunkSize: number = 2000): Promise<string[]> {
+  async chunkContent(
+    content: string,
+    maxChunkSize: number = 2000,
+  ): Promise<string[]> {
     if (!this.client) {
-      throw new Error('Gemini is not configured. Please add GEMINI_API_KEY to your environment variables.');
+      throw new Error(
+        "Gemini is not configured. Please add GEMINI_API_KEY to your environment variables.",
+      );
     }
 
     try {
@@ -170,10 +190,10 @@ ${content}
 Return as JSON array of section texts: ["section1", "section2", ...]`;
 
       const result = await this.client.models.generateContent({
-        model: 'gemini-2.0-flash-exp',
+        model: "gemini-2.0-flash-exp",
         contents: prompt,
       });
-      const text = result.text || '';
+      const text = result.text || "";
 
       const jsonMatch = text.match(/\[[\s\S]*\]/);
       if (!jsonMatch) {
@@ -183,7 +203,7 @@ Return as JSON array of section texts: ["section1", "section2", ...]`;
 
       return JSON.parse(jsonMatch[0]);
     } catch (error) {
-      console.error('Gemini chunking error:', error);
+      console.error("Gemini chunking error:", error);
       return this.simpleChunk(content, maxChunkSize);
     }
   }
@@ -194,14 +214,14 @@ Return as JSON array of section texts: ["section1", "section2", ...]`;
   private simpleChunk(content: string, maxSize: number): string[] {
     const chunks: string[] = [];
     const paragraphs = content.split(/\n\n+/);
-    let currentChunk = '';
+    let currentChunk = "";
 
     for (const para of paragraphs) {
       if ((currentChunk + para).length > maxSize && currentChunk.length > 0) {
         chunks.push(currentChunk.trim());
         currentChunk = para;
       } else {
-        currentChunk += (currentChunk ? '\n\n' : '') + para;
+        currentChunk += (currentChunk ? "\n\n" : "") + para;
       }
     }
 
@@ -215,24 +235,31 @@ Return as JSON array of section texts: ["section1", "section2", ...]`;
   /**
    * Determine difficulty based on importance score
    */
-  private determineDifficulty(importance: number): 'beginner' | 'intermediate' | 'advanced' {
-    if (importance < 0.4) return 'beginner';
-    if (importance < 0.7) return 'intermediate';
-    return 'advanced';
+  private determineDifficulty(
+    importance: number,
+  ): "beginner" | "intermediate" | "advanced" {
+    if (importance < 0.4) return "beginner";
+    if (importance < 0.7) return "intermediate";
+    return "advanced";
   }
 
   /**
    * Generate in-depth content for an article
    */
-  async generateInDepthContent(article: GeneratedArticle, originalContent: ScrapedContent[]): Promise<string> {
+  async generateInDepthContent(
+    article: GeneratedArticle,
+    originalContent: ScrapedContent[],
+  ): Promise<string> {
     if (!this.client) {
-      throw new Error('Gemini is not configured. Please add GEMINI_API_KEY to your environment variables.');
+      throw new Error(
+        "Gemini is not configured. Please add GEMINI_API_KEY to your environment variables.",
+      );
     }
 
     try {
       const contentText = originalContent
-        .map(c => c.content.substring(0, 4000))
-        .join('\n\n');
+        .map((c) => c.content.substring(0, 4000))
+        .join("\n\n");
 
       const prompt = `Expand on the topic "${article.title}" with more detailed, in-depth content for learners who want to dive deeper.
 
@@ -253,13 +280,15 @@ Requirements:
 Return the expanded content only.`;
 
       const result = await this.client.models.generateContent({
-        model: 'gemini-2.0-flash-exp',
+        model: "gemini-2.0-flash-exp",
         contents: prompt,
       });
-      return result.text || '';
+      return result.text || "";
     } catch (error) {
-      console.error('Gemini in-depth content error:', error);
-      throw new Error(`Failed to generate in-depth content for: ${article.title}`);
+      console.error("Gemini in-depth content error:", error);
+      throw new Error(
+        `Failed to generate in-depth content for: ${article.title}`,
+      );
     }
   }
 }

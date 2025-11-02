@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { useStore } from '@/lib/store/useStore';
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { useStore } from "@/lib/store/useStore";
 
 export default function Home() {
   const router = useRouter();
@@ -10,9 +10,9 @@ export default function Home() {
 
   useEffect(() => {
     if (onboardingCompleted) {
-      router.replace('/courses');
+      router.replace("/courses");
     } else {
-      router.replace('/onboarding');
+      router.replace("/onboarding");
     }
   }, [onboardingCompleted, router]);
 

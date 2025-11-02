@@ -1,6 +1,6 @@
 // Supermemory service for user behavior tracking and recommendations
-import Supermemory from 'supermemory';
-import type { UserBehavior, AdaptiveRecommendation } from '../types';
+import Supermemory from "supermemory";
+import type { UserBehavior, AdaptiveRecommendation } from "../types";
 
 class SupermemoryService {
   private client: Supermemory | null = null;
@@ -24,7 +24,9 @@ class SupermemoryService {
    */
   async addMemory(behavior: UserBehavior): Promise<void> {
     if (!this.client) {
-      console.warn('Supermemory is not configured. Behavior tracking disabled.');
+      console.warn(
+        "Supermemory is not configured. Behavior tracking disabled.",
+      );
       return;
     }
 
@@ -40,7 +42,7 @@ class SupermemoryService {
         },
       });
     } catch (error) {
-      console.error('Supermemory add memory error:', error);
+      console.error("Supermemory add memory error:", error);
       // Don't throw - behavior tracking shouldn't break the app
     }
   }
@@ -50,7 +52,7 @@ class SupermemoryService {
    */
   async searchMemories(userId: string, query: string): Promise<UserBehavior[]> {
     if (!this.client) {
-      console.warn('Supermemory is not configured.');
+      console.warn("Supermemory is not configured.");
       return [];
     }
 
@@ -65,7 +67,7 @@ class SupermemoryService {
       for (const result of response.results || []) {
         try {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const content = (result as any).content || (result as any).text || '';
+          const content = (result as any).content || (result as any).text || "";
           const behavior = JSON.parse(content);
           if (behavior.userId === userId) {
             behaviors.push(behavior);
@@ -78,7 +80,7 @@ class SupermemoryService {
 
       return behaviors;
     } catch (error) {
-      console.error('Supermemory search error:', error);
+      console.error("Supermemory search error:", error);
       return [];
     }
   }
@@ -89,9 +91,12 @@ class SupermemoryService {
    * @param courseId - Course ID for filtering
    */
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  async getRecommendations(_userId: string, _courseId: string): Promise<AdaptiveRecommendation[]> {
+  async getRecommendations(
+    _userId: string,
+    _courseId: string,
+  ): Promise<AdaptiveRecommendation[]> {
     if (!this.client) {
-      console.warn('Supermemory is not configured.');
+      console.warn("Supermemory is not configured.");
       return [];
     }
 
@@ -106,7 +111,7 @@ class SupermemoryService {
       const recommendations: AdaptiveRecommendation[] = [];
       return recommendations;
     } catch (error) {
-      console.error('Supermemory recommendations error:', error);
+      console.error("Supermemory recommendations error:", error);
       return [];
     }
   }
@@ -114,11 +119,15 @@ class SupermemoryService {
   /**
    * Track article view
    */
-  async trackArticleView(userId: string, articleId: string, timeSpent?: number): Promise<void> {
+  async trackArticleView(
+    userId: string,
+    articleId: string,
+    timeSpent?: number,
+  ): Promise<void> {
     await this.addMemory({
       userId,
       articleId,
-      action: 'viewed',
+      action: "viewed",
       timestamp: new Date().toISOString(),
       metadata: { timeSpent },
     });
@@ -127,11 +136,14 @@ class SupermemoryService {
   /**
    * Track article completion
    */
-  async trackArticleCompletion(userId: string, articleId: string): Promise<void> {
+  async trackArticleCompletion(
+    userId: string,
+    articleId: string,
+  ): Promise<void> {
     await this.addMemory({
       userId,
       articleId,
-      action: 'completed',
+      action: "completed",
       timestamp: new Date().toISOString(),
       metadata: {},
     });
@@ -144,7 +156,7 @@ class SupermemoryService {
     await this.addMemory({
       userId,
       articleId,
-      action: 'bookmarked',
+      action: "bookmarked",
       timestamp: new Date().toISOString(),
       metadata: {},
     });
@@ -153,11 +165,15 @@ class SupermemoryService {
   /**
    * Track quiz taken
    */
-  async trackQuizTaken(userId: string, articleId: string, score: number): Promise<void> {
+  async trackQuizTaken(
+    userId: string,
+    articleId: string,
+    score: number,
+  ): Promise<void> {
     await this.addMemory({
       userId,
       articleId,
-      action: 'quiz_taken',
+      action: "quiz_taken",
       timestamp: new Date().toISOString(),
       metadata: { quizScore: score },
     });
@@ -183,22 +199,32 @@ class SupermemoryService {
 
     try {
       // Search for all user behaviors
-      const behaviors = await this.searchMemories(userId, 'action viewed completed quiz_taken');
+      const behaviors = await this.searchMemories(
+        userId,
+        "action viewed completed quiz_taken",
+      );
 
-      const viewed = behaviors.filter(b => b.action === 'viewed').length;
-      const completed = behaviors.filter(b => b.action === 'completed').length;
+      const viewed = behaviors.filter((b) => b.action === "viewed").length;
+      const completed = behaviors.filter(
+        (b) => b.action === "completed",
+      ).length;
       const quizResults = behaviors
-        .filter(b => b.action === 'quiz_taken' && b.metadata?.quizScore)
-        .map(b => b.metadata!.quizScore as number);
+        .filter((b) => b.action === "quiz_taken" && b.metadata?.quizScore)
+        .map((b) => b.metadata!.quizScore as number);
 
-      const averageQuizScore = quizResults.length > 0
-        ? quizResults.reduce((sum, score) => sum + score, 0) / quizResults.length
-        : 0;
+      const averageQuizScore =
+        quizResults.length > 0
+          ? quizResults.reduce((sum, score) => sum + score, 0) /
+            quizResults.length
+          : 0;
 
       // Calculate streak
       const completedBehaviors = behaviors
-        .filter(b => b.action === 'completed')
-        .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+        .filter((b) => b.action === "completed")
+        .sort(
+          (a, b) =>
+            new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
+        );
 
       let streak = 0;
       const currentDate = new Date();
@@ -209,7 +235,8 @@ class SupermemoryService {
         behaviorDate.setHours(0, 0, 0, 0);
 
         const daysDiff = Math.floor(
-          (currentDate.getTime() - behaviorDate.getTime()) / (1000 * 60 * 60 * 24)
+          (currentDate.getTime() - behaviorDate.getTime()) /
+            (1000 * 60 * 60 * 24),
         );
 
         if (daysDiff === streak) {
@@ -226,7 +253,7 @@ class SupermemoryService {
         currentStreak: streak,
       };
     } catch (error) {
-      console.error('Supermemory analytics error:', error);
+      console.error("Supermemory analytics error:", error);
       return {
         totalArticlesViewed: 0,
         totalArticlesCompleted: 0,

@@ -1,6 +1,7 @@
 # Docuer - Quick Start Guide
 
 ## ✅ Current Status
+
 - **Build**: ✅ Successful (zero errors)
 - **Implementation**: ✅ Complete
 - **Documentation**: ✅ Ready
@@ -129,6 +130,7 @@ Your Documentation URL
 ### What Gets Generated
 
 For each documentation URL, the AI creates:
+
 - ✅ **Topics** - Key concepts to learn
 - ✅ **Articles** - 300-500 word bite-sized lessons
 - ✅ **Quizzes** - 3 questions per article
@@ -138,36 +140,42 @@ For each documentation URL, the AI creates:
 ## 🎨 Features Available Now
 
 ### ✅ Course Management
+
 - Create courses from any documentation URL
 - Edit course details
 - Track progress
 - Delete courses
 
 ### ✅ Adaptive Learning
+
 - AI-generated bite-sized articles
 - Personalized learning paths
 - Progress tracking
 - Streak counter
 
 ### ✅ Interactive Quizzes
+
 - Auto-generated questions
 - Multiple difficulty levels
 - Instant feedback
 - Score tracking
 
 ### ✅ TikTok-Style Feed
+
 - Swipe through articles
 - Double-tap to complete
 - Save favorites
 - Discover related content
 
 ### ✅ Knowledge Graph (if Neo4j configured)
+
 - Topic relationships
 - Prerequisite tracking
 - Optimal path calculation
 - Smart recommendations
 
 ### ✅ Analytics (if Supermemory configured)
+
 - Learning patterns
 - Time tracking
 - Performance metrics
@@ -176,22 +184,27 @@ For each documentation URL, the AI creates:
 ## 🔧 Troubleshooting
 
 ### "Failed to create course"
+
 **Cause**: API key not configured or invalid
 **Fix**: Check `.env.local` has correct API keys
 
 ### "Firecrawl is not configured"
+
 **Cause**: Missing `FIRECRAWL_API_KEY`
 **Fix**: Add your Firecrawl API key to `.env.local`
 
 ### Course creation takes too long
+
 **Cause**: Scraping/AI generation is intensive
 **Solution**: This is normal! Wait 30-60 seconds. The app is:
+
 - Scraping documentation
 - Analyzing content
 - Generating articles
 - Creating knowledge graph
 
 ### Quiz not generating
+
 **Cause**: Missing `GEMINI_API_KEY`
 **Fix**: Add your Gemini API key to `.env.local`
 
@@ -204,6 +217,7 @@ For each documentation URL, the AI creates:
 ## 🎓 Example Documentation URLs to Try
 
 Perfect for testing:
+
 - `https://react.dev/learn` - React Documentation
 - `https://nextjs.org/docs` - Next.js Documentation
 - `https://tailwindcss.com/docs` - Tailwind CSS
@@ -223,6 +237,7 @@ Perfect for testing:
 ### After Testing Locally
 
 1. **Deploy to Vercel**
+
    ```bash
    npm run build
    vercel deploy

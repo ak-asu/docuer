@@ -1,6 +1,6 @@
 // Firecrawl service for web scraping documentation
-import Firecrawl from '@mendable/firecrawl-js';
-import type { ScrapedContent } from '../types';
+import Firecrawl from "@mendable/firecrawl-js";
+import type { ScrapedContent } from "../types";
 
 class FirecrawlService {
   private client: Firecrawl | null = null;
@@ -24,34 +24,38 @@ class FirecrawlService {
    */
   async scrapeUrl(url: string): Promise<ScrapedContent> {
     if (!this.client) {
-      throw new Error('Firecrawl is not configured. Please add FIRECRAWL_API_KEY to your environment variables.');
+      throw new Error(
+        "Firecrawl is not configured. Please add FIRECRAWL_API_KEY to your environment variables.",
+      );
     }
 
     try {
       const response = await this.client.scrape(url, {
-        formats: ['markdown', 'html'],
+        formats: ["markdown", "html"],
         // onlyMainContent: true,
       });
 
       return {
         url,
-        title: response.metadata?.title || 'Untitled',
-        content: response.markdown || '',
-        markdown: response.markdown || '',
+        title: response.metadata?.title || "Untitled",
+        content: response.markdown || "",
+        markdown: response.markdown || "",
         html: response.html,
         links: response.links || [],
         metadata: {
           description: response.metadata?.description as string | undefined,
           keywords: Array.isArray(response.metadata?.keywords)
             ? response.metadata.keywords
-            : typeof response.metadata?.keywords === 'string'
-            ? response.metadata.keywords.split(',').map((k: string) => k.trim())
-            : undefined,
+            : typeof response.metadata?.keywords === "string"
+              ? response.metadata.keywords
+                  .split(",")
+                  .map((k: string) => k.trim())
+              : undefined,
           author: response.metadata?.author as string | undefined,
         },
       };
     } catch (error) {
-      console.error('Firecrawl scrape error:', error);
+      console.error("Firecrawl scrape error:", error);
       throw new Error(`Failed to scrape URL: ${url}`);
     }
   }
@@ -62,14 +66,17 @@ class FirecrawlService {
    */
   async crawlWebsite(
     url: string,
-    options: {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    _options: {
       maxPages?: number;
       includePaths?: string[];
       excludePaths?: string[];
-    } = {}
+    } = {},
   ): Promise<ScrapedContent[]> {
     if (!this.client) {
-      throw new Error('Firecrawl is not configured. Please add FIRECRAWL_API_KEY to your environment variables.');
+      throw new Error(
+        "Firecrawl is not configured. Please add FIRECRAWL_API_KEY to your environment variables.",
+      );
     }
 
     try {
@@ -78,7 +85,7 @@ class FirecrawlService {
       const mainPage = await this.scrapeUrl(url);
       return [mainPage];
     } catch (error) {
-      console.error('Firecrawl crawl error:', error);
+      console.error("Firecrawl crawl error:", error);
       throw new Error(`Failed to crawl website: ${url}`);
     }
   }
@@ -88,15 +95,21 @@ class FirecrawlService {
    */
   async mapWebsite(url: string): Promise<string[]> {
     if (!this.client) {
-      throw new Error('Firecrawl is not configured. Please add FIRECRAWL_API_KEY to your environment variables.');
+      throw new Error(
+        "Firecrawl is not configured. Please add FIRECRAWL_API_KEY to your environment variables.",
+      );
     }
 
     try {
       const response = await this.client.map(url);
       // Response has a links array with objects containing url property
-      return response.links?.map((link: any) => link.url || link) || [];
+      return (
+        response.links?.map((link: string | { url: string }) =>
+          typeof link === "string" ? link : link.url,
+        ) || []
+      );
     } catch (error) {
-      console.error('Firecrawl map error:', error);
+      console.error("Firecrawl map error:", error);
       throw new Error(`Failed to map website: ${url}`);
     }
   }

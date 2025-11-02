@@ -13,7 +13,15 @@ import {
   ModalFooter,
   Button,
 } from "@heroui/react";
-import { BookOpen, MessageCircle, Bookmark, Brain, Check } from "lucide-react";
+import {
+  BookOpen,
+  MessageCircle,
+  Bookmark,
+  Brain,
+  Check,
+  ArrowLeft,
+} from "lucide-react";
+import ReactMarkdown from "react-markdown";
 import { useStore } from "@/lib/store/useStore";
 import QuizModal from "@/app/components/QuizModal";
 import Layout from "@/app/components/Layout";
@@ -50,59 +58,64 @@ const ActionButton = ({
   </motion.button>
 );
 
-export default function ShortsPage() {
+export default function CourseShortPage() {
   const params = useParams();
   const articleId = params?.articleId as string | undefined;
+  const courseId = params?.courseId as string | undefined;
   const router = useRouter();
-  const {
-    articles,
-    currentArticleIndex,
-    setCurrentArticleIndex,
-    toggleArticleComplete,
-    toggleArticleBookmark,
-  } = useStore();
+  const { articles, courses, toggleArticleComplete, toggleArticleBookmark } =
+    useStore();
 
   const [showCompleteAnimation, setShowCompleteAnimation] = useState(false);
-  const [lastTapTime, setLastTapTime] = useState(0);
   const [showRelatedArticles, setShowRelatedArticles] = useState(false);
   const [showQuizModal, setShowQuizModal] = useState(false);
   const [touchStartY, setTouchStartY] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
+  const lastTapTimeRef = useRef(0);
 
-  const currentArticle = articles[currentArticleIndex];
+  // Filter articles by course
+  const courseArticles = articles.filter((a) => a.courseId === courseId);
 
-  useEffect(() => {
-    if (articleId) {
-      const index = articles.findIndex((a) => a.id === articleId);
-      if (index !== -1) {
-        setCurrentArticleIndex(index);
-      }
+  // Initialize current article index from URL parameter
+  const getInitialIndex = () => {
+    if (articleId && courseArticles.length > 0) {
+      const index = courseArticles.findIndex((a) => a.id === articleId);
+      return index !== -1 ? index : 0;
     }
-  }, [articleId, articles, setCurrentArticleIndex]);
+    return 0;
+  };
 
+  const [currentArticleIndex, setCurrentArticleIndex] =
+    useState(getInitialIndex);
+
+  const currentArticle = courseArticles[currentArticleIndex];
+  const course = courses.find((c) => c.id === courseId);
+
+  // Keep URL in sync with current article when navigating
   useEffect(() => {
-    if (currentArticle) {
-      router.replace(`/shorts/${currentArticle.id}`);
+    if (currentArticle && courseId && currentArticle.id !== articleId) {
+      router.replace(`/courses/${courseId}/${currentArticle.id}`);
     }
-  }, [currentArticleIndex, currentArticle, router]);
+  }, [currentArticleIndex, currentArticle, courseId, articleId, router]);
 
   const handleDoubleTap = () => {
-    const now = Date.now();
-    const timeDiff = now - lastTapTime;
+    const getCurrentTime = () => Date.now();
+    const now = getCurrentTime();
+    const timeDiff = now - lastTapTimeRef.current;
 
-    if (timeDiff < 300) {
+    if (timeDiff < 300 && currentArticle) {
       toggleArticleComplete(currentArticle.id);
       setShowCompleteAnimation(true);
       setTimeout(() => setShowCompleteAnimation(false), 1000);
     }
 
-    setLastTapTime(now);
+    lastTapTimeRef.current = now;
   };
 
   const [scrollDirection, setScrollDirection] = useState<"up" | "down">("up");
 
   const handleScroll = (direction: "up" | "down") => {
-    if (direction === "up" && currentArticleIndex < articles.length - 1) {
+    if (direction === "up" && currentArticleIndex < courseArticles.length - 1) {
       setScrollDirection("up");
       setCurrentArticleIndex(currentArticleIndex + 1);
     } else if (direction === "down" && currentArticleIndex > 0) {
@@ -136,15 +149,28 @@ export default function ShortsPage() {
     }
   };
 
-  const relatedArticles = articles.filter((a) =>
-    currentArticle.relatedArticles.includes(a.id),
-  );
+  const relatedArticles = currentArticle
+    ? courseArticles.filter((a) =>
+        currentArticle.relatedArticles.includes(a.id),
+      )
+    : [];
 
-  if (!currentArticle) {
+  if (!currentArticle || !course) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        Loading...
-      </div>
+      <Layout>
+        <div className="min-h-screen flex items-center justify-center bg-gray-900">
+          <div className="text-center">
+            <p className="text-white text-xl mb-4">
+              {!course
+                ? "Course not found"
+                : "No articles available for this course"}
+            </p>
+            <Button color="primary" onPress={() => router.push("/courses")}>
+              Back to Courses
+            </Button>
+          </div>
+        </div>
+      </Layout>
     );
   }
 
@@ -154,6 +180,19 @@ export default function ShortsPage() {
         className="relative bg-black flex justify-center"
         style={{ height: "calc(100vh - 4rem)" }}
       >
+        {/* Back Button */}
+        <div className="absolute top-4 left-4 z-10">
+          <Button
+            isIconOnly
+            variant="flat"
+            className="bg-white/90 hover:bg-white"
+            onPress={() => router.push(`/courses/${courseId}`)}
+            aria-label="Back to course"
+          >
+            <ArrowLeft size={20} />
+          </Button>
+        </div>
+
         <main
           ref={containerRef}
           className="w-full max-w-[500px] h-full overflow-hidden relative"
@@ -178,12 +217,17 @@ export default function ShortsPage() {
               <article className="relative h-full flex flex-col justify-center p-6 md:p-12">
                 <div className="space-y-6">
                   <header className="space-y-2">
-                    <span
-                      className="text-white/80 text-sm font-medium"
-                      aria-label="Reading time"
-                    >
-                      {currentArticle.duration}
-                    </span>
+                    <div className="flex items-center justify-between">
+                      <span
+                        className="text-white/80 text-sm font-medium"
+                        aria-label="Reading time"
+                      >
+                        {currentArticle.duration}
+                      </span>
+                      <span className="text-white/60 text-xs font-medium bg-white/10 px-2 py-1 rounded">
+                        {course.title}
+                      </span>
+                    </div>
                     <h1 className="text-4xl md:text-5xl font-bold text-white leading-tight">
                       {currentArticle.title}
                     </h1>
@@ -193,9 +237,78 @@ export default function ShortsPage() {
                     className="prose prose-invert prose-lg max-w-none"
                     aria-label="Article content"
                   >
-                    <p className="text-white/90 text-lg leading-relaxed whitespace-pre-line">
-                      {currentArticle.content}
-                    </p>
+                    <div className="text-white/90 text-lg leading-relaxed markdown-content">
+                      <ReactMarkdown
+                        components={{
+                          p: ({ children }) => (
+                            <p className="mb-4">{children}</p>
+                          ),
+                          h1: ({ children }) => (
+                            <h1 className="text-3xl font-bold mb-4 text-white">
+                              {children}
+                            </h1>
+                          ),
+                          h2: ({ children }) => (
+                            <h2 className="text-2xl font-bold mb-3 text-white">
+                              {children}
+                            </h2>
+                          ),
+                          h3: ({ children }) => (
+                            <h3 className="text-xl font-semibold mb-2 text-white">
+                              {children}
+                            </h3>
+                          ),
+                          ul: ({ children }) => (
+                            <ul className="list-disc list-inside mb-4 space-y-2">
+                              {children}
+                            </ul>
+                          ),
+                          ol: ({ children }) => (
+                            <ol className="list-decimal list-inside mb-4 space-y-2">
+                              {children}
+                            </ol>
+                          ),
+                          li: ({ children }) => (
+                            <li className="text-white/90">{children}</li>
+                          ),
+                          code: ({ children }) => (
+                            <code className="bg-white/10 px-2 py-1 rounded text-sm">
+                              {children}
+                            </code>
+                          ),
+                          pre: ({ children }) => (
+                            <pre className="bg-white/10 p-4 rounded-lg overflow-x-auto mb-4">
+                              {children}
+                            </pre>
+                          ),
+                          a: ({ children, href }) => (
+                            <a
+                              href={href}
+                              className="text-blue-300 hover:text-blue-200 underline"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              {children}
+                            </a>
+                          ),
+                          strong: ({ children }) => (
+                            <strong className="font-bold text-white">
+                              {children}
+                            </strong>
+                          ),
+                          em: ({ children }) => (
+                            <em className="italic">{children}</em>
+                          ),
+                          blockquote: ({ children }) => (
+                            <blockquote className="border-l-4 border-white/30 pl-4 italic my-4">
+                              {children}
+                            </blockquote>
+                          ),
+                        }}
+                      >
+                        {currentArticle.content}
+                      </ReactMarkdown>
+                    </div>
                   </section>
 
                   <footer className="flex items-center gap-2 pt-4">
@@ -203,7 +316,8 @@ export default function ShortsPage() {
                       className="text-white/70 text-sm"
                       aria-label="Article progress"
                     >
-                      Article {currentArticleIndex + 1} of {articles.length}
+                      Article {currentArticleIndex + 1} of{" "}
+                      {courseArticles.length}
                     </div>
                     {currentArticle.completed && (
                       <div
@@ -218,6 +332,38 @@ export default function ShortsPage() {
                   </footer>
                 </div>
               </article>
+
+              <div className="absolute right-4 md:right-8 bottom-20 flex flex-col gap-4">
+                <ActionButton
+                  icon={BookOpen}
+                  label="In-Depth"
+                  onClick={() => {
+                    if (relatedArticles.length > 0) {
+                      const inDepthArticle = relatedArticles[0];
+                      const index = courseArticles.findIndex(
+                        (a) => a.id === inDepthArticle.id,
+                      );
+                      if (index !== -1) setCurrentArticleIndex(index);
+                    }
+                  }}
+                />
+                <ActionButton
+                  icon={MessageCircle}
+                  label="Related"
+                  onClick={() => setShowRelatedArticles(true)}
+                />
+                <ActionButton
+                  icon={Bookmark}
+                  label="Save"
+                  onClick={() => toggleArticleBookmark(currentArticle.id)}
+                  isActive={currentArticle.bookmarked}
+                />
+                <ActionButton
+                  icon={Brain}
+                  label="Quiz"
+                  onClick={() => setShowQuizModal(true)}
+                />
+              </div>
 
               <AnimatePresence>
                 {showCompleteAnimation && (
@@ -236,39 +382,6 @@ export default function ShortsPage() {
             </motion.div>
           </AnimatePresence>
         </main>
-
-        {/* Action Buttons - Positioned outside shorts container */}
-        <div className="absolute right-4 md:right-8 top-1/2 -translate-y-1/2 flex flex-col gap-4 z-10">
-          <ActionButton
-            icon={BookOpen}
-            label="In-Depth"
-            onClick={() => {
-              if (relatedArticles.length > 0) {
-                const inDepthArticle = relatedArticles[0];
-                const index = articles.findIndex(
-                  (a) => a.id === inDepthArticle.id,
-                );
-                if (index !== -1) setCurrentArticleIndex(index);
-              }
-            }}
-          />
-          <ActionButton
-            icon={MessageCircle}
-            label="Related"
-            onClick={() => setShowRelatedArticles(true)}
-          />
-          <ActionButton
-            icon={Bookmark}
-            label="Save"
-            onClick={() => toggleArticleBookmark(currentArticle.id)}
-            isActive={currentArticle.bookmarked}
-          />
-          <ActionButton
-            icon={Brain}
-            label="Quiz"
-            onClick={() => setShowQuizModal(true)}
-          />
-        </div>
       </div>
 
       <Modal
@@ -296,7 +409,7 @@ export default function ShortsPage() {
                     <Card
                       isPressable
                       onPress={() => {
-                        const index = articles.findIndex(
+                        const index = courseArticles.findIndex(
                           (a) => a.id === article.id,
                         );
                         if (index !== -1) {

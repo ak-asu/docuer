@@ -30,7 +30,7 @@ export interface GeneratedArticle {
   topicId: string;
   courseId: string;
   duration: string;
-  difficulty: 'beginner' | 'intermediate' | 'advanced';
+  difficulty: "beginner" | "intermediate" | "advanced";
   prerequisites: string[];
   relatedArticles: string[];
   createdAt: string;
@@ -43,41 +43,41 @@ export interface QuizQuestion {
   correctAnswer: number;
   explanation: string;
   articleId: string;
-  difficulty: 'easy' | 'medium' | 'hard';
+  difficulty: "easy" | "medium" | "hard";
 }
 
 export interface KnowledgeGraphNode {
   id: string;
   label: string;
-  type: 'course' | 'topic' | 'article' | 'concept';
+  type: "course" | "topic" | "article" | "concept";
   properties: {
     title: string;
     description?: string;
     difficulty?: string;
     importance?: number;
-    [key: string]: any;
+    [key: string]: unknown;
   };
 }
 
 export interface KnowledgeGraphRelationship {
   from: string;
   to: string;
-  type: 'CONTAINS' | 'PREREQUISITE' | 'RELATED_TO' | 'FOLLOWS';
+  type: "CONTAINS" | "PREREQUISITE" | "RELATED_TO" | "FOLLOWS";
   properties?: {
     strength?: number;
-    [key: string]: any;
+    [key: string]: unknown;
   };
 }
 
 export interface UserBehavior {
   userId: string;
   articleId: string;
-  action: 'viewed' | 'completed' | 'bookmarked' | 'quiz_taken';
+  action: "viewed" | "completed" | "bookmarked" | "quiz_taken";
   timestamp: string;
   metadata?: {
     timeSpent?: number;
     quizScore?: number;
-    [key: string]: any;
+    [key: string]: unknown;
   };
 }
 

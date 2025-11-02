@@ -1,6 +1,6 @@
 // Cohere service for topic extraction and analysis
-import { CohereClientV2 } from 'cohere-ai';
-import type { ExtractedTopic, ScrapedContent } from '../types';
+import { CohereClientV2 } from "cohere-ai";
+import type { ExtractedTopic, ScrapedContent } from "../types";
 
 class CohereService {
   private client: CohereClientV2 | null = null;
@@ -26,14 +26,18 @@ class CohereService {
    */
   async extractTopics(contents: ScrapedContent[]): Promise<ExtractedTopic[]> {
     if (!this.client) {
-      throw new Error('Cohere is not configured. Please add COHERE_API_KEY to your environment variables.');
+      throw new Error(
+        "Cohere is not configured. Please add COHERE_API_KEY to your environment variables.",
+      );
     }
 
     try {
       // Combine all content for analysis
       const combinedText = contents
-        .map(c => `Title: ${c.title}\nContent: ${c.content.substring(0, 2000)}`)
-        .join('\n\n---\n\n');
+        .map(
+          (c) => `Title: ${c.title}\nContent: ${c.content.substring(0, 2000)}`,
+        )
+        .join("\n\n---\n\n");
 
       const prompt = `Analyze the following technical documentation and extract key learning topics. For each topic, provide:
 1. A clear name
@@ -57,10 +61,10 @@ Return the response in JSON format as an array of topics:
 ]`;
 
       const response = await this.client.chat({
-        model: 'command-r-plus',
+        model: "command-r-08-2024",
         messages: [
           {
-            role: 'user',
+            role: "user",
             content: prompt,
           },
         ],
@@ -68,17 +72,24 @@ Return the response in JSON format as an array of topics:
 
       // Parse the response
       const firstContent = response.message.content?.[0];
-      const contentText = firstContent && 'text' in firstContent ? firstContent.text : '';
+      const contentText =
+        firstContent && "text" in firstContent ? firstContent.text : "";
 
       // Extract JSON from the response
       const jsonMatch = contentText.match(/\[[\s\S]*\]/);
       if (!jsonMatch) {
-        throw new Error('Failed to extract topics from response');
+        throw new Error("Failed to extract topics from response");
       }
 
-      const topics = JSON.parse(jsonMatch[0]);
+      const topics = JSON.parse(jsonMatch[0]) as Array<{
+        name: string;
+        description: string;
+        importance: number;
+        prerequisites?: string[];
+        relatedTopics?: string[];
+      }>;
 
-      return topics.map((topic: any, index: number) => ({
+      return topics.map((topic, index: number) => ({
         id: `topic-${Date.now()}-${index}`,
         name: topic.name,
         description: topic.description,
@@ -87,8 +98,8 @@ Return the response in JSON format as an array of topics:
         relatedTopics: topic.relatedTopics || [],
       }));
     } catch (error) {
-      console.error('Cohere topic extraction error:', error);
-      throw new Error('Failed to extract topics from documentation');
+      console.error("Cohere topic extraction error:", error);
+      throw new Error("Failed to extract topics from documentation");
     }
   }
 
@@ -97,7 +108,9 @@ Return the response in JSON format as an array of topics:
    */
   async suggestLearningPath(topics: ExtractedTopic[]): Promise<string[]> {
     if (!this.client) {
-      throw new Error('Cohere is not configured. Please add COHERE_API_KEY to your environment variables.');
+      throw new Error(
+        "Cohere is not configured. Please add COHERE_API_KEY to your environment variables.",
+      );
     }
 
     try {
@@ -109,59 +122,67 @@ ${JSON.stringify(topics, null, 2)}
 Return only a JSON array of topic names in the recommended order, like: ["topic1", "topic2", "topic3"]`;
 
       const response = await this.client.chat({
-        model: 'command-r-plus',
+        model: "command-r-08-2024",
         messages: [
           {
-            role: 'user',
+            role: "user",
             content: prompt,
           },
         ],
       });
 
       const firstContent = response.message.content?.[0];
-      const contentText = firstContent && 'text' in firstContent ? firstContent.text : '';
+      const contentText =
+        firstContent && "text" in firstContent ? firstContent.text : "";
       const jsonMatch = contentText.match(/\[[\s\S]*\]/);
 
       if (!jsonMatch) {
         // Fallback: sort by importance
         return topics
           .sort((a, b) => b.importance - a.importance)
-          .map(t => t.name);
+          .map((t) => t.name);
       }
 
       return JSON.parse(jsonMatch[0]);
     } catch (error) {
-      console.error('Cohere learning path error:', error);
+      console.error("Cohere learning path error:", error);
       // Fallback: sort by importance
       return topics
         .sort((a, b) => b.importance - a.importance)
-        .map(t => t.name);
+        .map((t) => t.name);
     }
   }
 
   /**
    * Generate a summary of scraped content
    */
-  async summarizeContent(content: string, maxLength: number = 200): Promise<string> {
+  async summarizeContent(
+    content: string,
+    maxLength: number = 200,
+  ): Promise<string> {
     if (!this.client) {
-      throw new Error('Cohere is not configured. Please add COHERE_API_KEY to your environment variables.');
+      throw new Error(
+        "Cohere is not configured. Please add COHERE_API_KEY to your environment variables.",
+      );
     }
 
     try {
       const response = await this.client.chat({
-        model: 'command-r-plus',
+        model: "command-r-08-2024",
         messages: [
           {
-            role: 'user',
+            role: "user",
             content: `Summarize the following content in ${maxLength} characters or less:\n\n${content.substring(0, 5000)}`,
           },
         ],
       });
 
       const firstContent = response.message.content?.[0];
-      return firstContent && 'text' in firstContent ? firstContent.text : content.substring(0, maxLength);
+      return firstContent && "text" in firstContent
+        ? firstContent.text
+        : content.substring(0, maxLength);
     } catch (error) {
-      console.error('Cohere summarization error:', error);
+      console.error("Cohere summarization error:", error);
       return content.substring(0, maxLength);
     }
   }

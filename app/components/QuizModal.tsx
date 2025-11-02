@@ -1,10 +1,19 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Button, Card, CardBody } from '@heroui/react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Check, X, Trophy, RotateCw } from 'lucide-react';
-import { useStore } from '@/lib/store/useStore';
+import { useState } from "react";
+import {
+  Modal,
+  ModalContent,
+  ModalHeader,
+  ModalBody,
+  ModalFooter,
+  Button,
+  Card,
+  CardBody,
+} from "@heroui/react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Check, X, Trophy, RotateCw } from "lucide-react";
+import { useStore } from "@/lib/store/useStore";
 
 interface QuizModalProps {
   isOpen: boolean;
@@ -23,16 +32,10 @@ export default function QuizModal({ isOpen, onClose }: QuizModalProps) {
 
   // Get questions for articles up to current index
   const viewedArticles = articles.slice(0, currentArticleIndex + 1);
-  const viewedArticleIds = viewedArticles.map(a => a.id);
-  const relevantQuestions = quizQuestions.filter(q =>
-    viewedArticleIds.includes(q.articleId)
+  const viewedArticleIds = viewedArticles.map((a) => a.id);
+  const relevantQuestions = quizQuestions.filter((q) =>
+    viewedArticleIds.includes(q.articleId),
   );
-
-  useEffect(() => {
-    if (!isOpen) {
-      resetQuiz();
-    }
-  }, [isOpen]);
 
   const resetQuiz = () => {
     setCurrentQuestionIndex(0);
@@ -85,7 +88,10 @@ export default function QuizModal({ isOpen, onClose }: QuizModalProps) {
           </ModalHeader>
           <ModalBody>
             <div className="text-center py-8">
-              <p className="text-gray-600">No quiz questions available yet. Keep reading articles to unlock quizzes!</p>
+              <p className="text-gray-600">
+                No quiz questions available yet. Keep reading articles to unlock
+                quizzes!
+              </p>
             </div>
           </ModalBody>
           <ModalFooter>
@@ -99,7 +105,8 @@ export default function QuizModal({ isOpen, onClose }: QuizModalProps) {
   }
 
   const currentQuestion = relevantQuestions[currentQuestionIndex];
-  const isCorrect = showResult && selectedAnswer === currentQuestion.correctAnswer;
+  const isCorrect =
+    showResult && selectedAnswer === currentQuestion.correctAnswer;
   const percentage = Math.round((score / relevantQuestions.length) * 100);
 
   return (
@@ -130,13 +137,17 @@ export default function QuizModal({ isOpen, onClose }: QuizModalProps) {
             >
               <Card className="bg-blue-50 border-2 border-blue-200">
                 <CardBody>
-                  <h3 className="font-semibold text-lg mb-4">{currentQuestion.question}</h3>
+                  <h3 className="font-semibold text-lg mb-4">
+                    {currentQuestion.question}
+                  </h3>
                   <div className="space-y-3">
                     {currentQuestion.options.map((option, index) => {
                       const isSelected = selectedAnswer === index;
-                      const isCorrectAnswer = index === currentQuestion.correctAnswer;
+                      const isCorrectAnswer =
+                        index === currentQuestion.correctAnswer;
                       const showCorrect = showResult && isCorrectAnswer;
-                      const showIncorrect = showResult && isSelected && !isCorrect;
+                      const showIncorrect =
+                        showResult && isSelected && !isCorrect;
 
                       return (
                         <motion.button
@@ -147,17 +158,21 @@ export default function QuizModal({ isOpen, onClose }: QuizModalProps) {
                           whileTap={!showResult ? { scale: 0.98 } : {}}
                           className={`w-full p-4 rounded-lg border-2 transition-all text-left flex items-center justify-between ${
                             showCorrect
-                              ? 'bg-green-100 border-green-500'
+                              ? "bg-green-100 border-green-500"
                               : showIncorrect
-                              ? 'bg-red-100 border-red-500'
-                              : isSelected
-                              ? 'bg-blue-100 border-blue-500'
-                              : 'bg-white border-gray-200 hover:border-blue-300'
-                          } ${showResult ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                                ? "bg-red-100 border-red-500"
+                                : isSelected
+                                  ? "bg-blue-100 border-blue-500"
+                                  : "bg-white border-gray-200 hover:border-blue-300"
+                          } ${showResult ? "cursor-not-allowed" : "cursor-pointer"}`}
                         >
                           <span className="font-medium">{option}</span>
-                          {showCorrect && <Check className="text-green-600" size={24} />}
-                          {showIncorrect && <X className="text-red-600" size={24} />}
+                          {showCorrect && (
+                            <Check className="text-green-600" size={24} />
+                          )}
+                          {showIncorrect && (
+                            <X className="text-red-600" size={24} />
+                          )}
                         </motion.button>
                       );
                     })}
@@ -172,20 +187,29 @@ export default function QuizModal({ isOpen, onClose }: QuizModalProps) {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -10 }}
                     className={`p-4 rounded-lg ${
-                      isCorrect ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'
+                      isCorrect
+                        ? "bg-green-50 border border-green-200"
+                        : "bg-red-50 border border-red-200"
                     }`}
                   >
                     <div className="flex items-center gap-2">
                       {isCorrect ? (
                         <>
                           <Check className="text-green-600" size={24} />
-                          <p className="font-semibold text-green-800">Correct! Well done!</p>
+                          <p className="font-semibold text-green-800">
+                            Correct! Well done!
+                          </p>
                         </>
                       ) : (
                         <>
                           <X className="text-red-600" size={24} />
                           <p className="font-semibold text-red-800">
-                            Incorrect. The correct answer is: {currentQuestion.options[currentQuestion.correctAnswer]}
+                            Incorrect. The correct answer is:{" "}
+                            {
+                              currentQuestion.options[
+                                currentQuestion.correctAnswer
+                              ]
+                            }
                           </p>
                         </>
                       )}
@@ -200,7 +224,7 @@ export default function QuizModal({ isOpen, onClose }: QuizModalProps) {
                     className="bg-blue-600 h-2 rounded-full"
                     initial={{ width: 0 }}
                     animate={{
-                      width: `${((currentQuestionIndex + (showResult ? 1 : 0)) / relevantQuestions.length) * 100}%`
+                      width: `${((currentQuestionIndex + (showResult ? 1 : 0)) / relevantQuestions.length) * 100}%`,
                     }}
                     transition={{ duration: 0.3 }}
                   />
@@ -217,21 +241,28 @@ export default function QuizModal({ isOpen, onClose }: QuizModalProps) {
               className="text-center py-8 space-y-6"
             >
               <div className="flex justify-center">
-                <div className="w-24 h-24 bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-full flex items-center justify-center shadow-xl">
+                <div className="w-24 h-24 bg-linear-to-br from-yellow-400 to-yellow-600 rounded-full flex items-center justify-center shadow-xl">
                   <Trophy className="text-white" size={48} />
                 </div>
               </div>
 
               <div>
-                <h3 className="text-3xl font-bold text-gray-900 mb-2">Quiz Complete!</h3>
-                <p className="text-gray-600">You've completed all the questions</p>
+                <h3 className="text-3xl font-bold text-gray-900 mb-2">
+                  Quiz Complete!
+                </h3>
+                <p className="text-gray-600">
+                  You&apos;ve completed all the questions
+                </p>
               </div>
 
-              <Card className="bg-gradient-to-br from-blue-50 to-purple-50 border-2 border-blue-200">
+              <Card className="bg-linear-to-br from-blue-50 to-purple-50 border-2 border-blue-200">
                 <CardBody className="text-center py-6">
-                  <p className="text-6xl font-bold text-blue-600 mb-2">{percentage}%</p>
+                  <p className="text-6xl font-bold text-blue-600 mb-2">
+                    {percentage}%
+                  </p>
                   <p className="text-gray-700 font-medium">
-                    You got {score} out of {relevantQuestions.length} questions correct
+                    You got {score} out of {relevantQuestions.length} questions
+                    correct
                   </p>
                 </CardBody>
               </Card>
@@ -248,7 +279,7 @@ export default function QuizModal({ isOpen, onClose }: QuizModalProps) {
               )}
               {percentage >= 90 && (
                 <p className="text-green-600 font-semibold">
-                  Excellent work! You've mastered these topics!
+                  Excellent work! You&apos;ve mastered these topics!
                 </p>
               )}
             </motion.div>
@@ -257,12 +288,10 @@ export default function QuizModal({ isOpen, onClose }: QuizModalProps) {
         <ModalFooter>
           {!quizCompleted ? (
             showResult ? (
-              <Button
-                color="primary"
-                onPress={handleNextQuestion}
-                size="lg"
-              >
-                {currentQuestionIndex < relevantQuestions.length - 1 ? 'Next Question' : 'See Results'}
+              <Button color="primary" onPress={handleNextQuestion} size="lg">
+                {currentQuestionIndex < relevantQuestions.length - 1
+                  ? "Next Question"
+                  : "See Results"}
               </Button>
             ) : (
               <>
