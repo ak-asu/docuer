@@ -10,6 +10,11 @@ class Neo4jService {
     const username = process.env.NEO4J_USERNAME;
     const password = process.env.NEO4J_PASSWORD;
 
+    console.log("Neo4j Configuration Check:");
+    console.log("- URI configured:", !!uri);
+    console.log("- Username configured:", !!username);
+    console.log("- Password configured:", !!password);
+
     // Only initialize if URI is valid (starts with neo4j:// or bolt://)
     if (
       uri &&
@@ -22,10 +27,15 @@ class Neo4jService {
     ) {
       try {
         this.driver = neo4j.driver(uri, neo4j.auth.basic(username, password));
+        console.log("✅ Neo4j driver initialized successfully");
       } catch (error) {
-        console.warn("Failed to initialize Neo4j driver:", error);
+        console.error("❌ Failed to initialize Neo4j driver:", error);
         this.driver = null;
       }
+    } else {
+      console.warn(
+        "⚠️ Neo4j not configured. Add NEO4J_URI, NEO4J_USERNAME, and NEO4J_PASSWORD to .env.local",
+      );
     }
   }
 
@@ -68,6 +78,7 @@ class Neo4jService {
   ): Promise<void> {
     const session = this.getSession();
     try {
+      console.log(`📚 Creating course node in Neo4j: ${title} (${courseId})`);
       await session.run(
         `
         MERGE (c:Course {id: $courseId})
@@ -79,6 +90,7 @@ class Neo4jService {
         `,
         { courseId, title, description, category },
       );
+      console.log(`✅ Course node created successfully`);
     } finally {
       await session.close();
     }
@@ -93,6 +105,7 @@ class Neo4jService {
   ): Promise<void> {
     const session = this.getSession();
     try {
+      console.log(`🏷️ Creating ${topics.length} topic nodes in Neo4j`);
       for (const topic of topics) {
         // Create topic node
         await session.run(
@@ -151,6 +164,7 @@ class Neo4jService {
   async createArticles(articles: GeneratedArticle[]): Promise<void> {
     const session = this.getSession();
     try {
+      console.log(`📝 Creating ${articles.length} article nodes in Neo4j`);
       for (const article of articles) {
         // Create article node
         await session.run(

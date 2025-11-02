@@ -131,7 +131,7 @@ export default function Chatbot() {
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: 400 }}
             transition={{ type: "spring", damping: 25, stiffness: 300 }}
-            className="fixed bottom-6 right-6 w-96 h-[600px] bg-white rounded-2xl shadow-2xl z-50 flex flex-col overflow-hidden"
+            className="fixed bottom-6 right-6 w-96 h-[600px] bg-white dark:bg-gray-800 rounded-2xl shadow-2xl z-50 flex flex-col overflow-hidden"
           >
             {/* Header */}
             <div className="bg-linear-to-br from-blue-600 to-green-600 p-4 flex items-center justify-between">
@@ -161,7 +161,7 @@ export default function Chatbot() {
             </div>
 
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50">
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50 dark:bg-gray-900">
               {messages.map((message) => (
                 <motion.div
                   key={message.id}
@@ -173,7 +173,7 @@ export default function Chatbot() {
                     className={`max-w-[80%] rounded-2xl px-4 py-2 ${
                       message.role === "user"
                         ? "bg-linear-to-br from-blue-600 to-green-600 text-white"
-                        : "bg-white text-gray-800 shadow-sm border border-gray-100"
+                        : "bg-white dark:bg-gray-800 dark:text-gray-100 text-gray-800 shadow-sm border border-gray-100 dark:border-gray-700"
                     }`}
                   >
                     <div className="text-sm">
@@ -184,21 +184,21 @@ export default function Chatbot() {
                           ),
                           h1: ({ children }) => (
                             <h1
-                              className={`text-lg font-bold mb-2 ${message.role === "user" ? "text-white" : "text-gray-900"}`}
+                              className={`text-lg font-bold mb-2 ${message.role === "user" ? "text-white" : "text-gray-900 dark:text-gray-50"}`}
                             >
                               {children}
                             </h1>
                           ),
                           h2: ({ children }) => (
                             <h2
-                              className={`text-base font-bold mb-2 ${message.role === "user" ? "text-white" : "text-gray-900"}`}
+                              className={`text-base font-bold mb-2 ${message.role === "user" ? "text-white" : "text-gray-900 dark:text-gray-50"}`}
                             >
                               {children}
                             </h2>
                           ),
                           h3: ({ children }) => (
                             <h3
-                              className={`text-sm font-semibold mb-1 ${message.role === "user" ? "text-white" : "text-gray-900"}`}
+                              className={`text-sm font-semibold mb-1 ${message.role === "user" ? "text-white" : "text-gray-900 dark:text-gray-50"}`}
                             >
                               {children}
                             </h3>
@@ -218,7 +218,7 @@ export default function Chatbot() {
                               className={
                                 message.role === "user"
                                   ? "text-white"
-                                  : "text-gray-800"
+                                  : "text-gray-800 dark:text-gray-100"
                               }
                             >
                               {children}
@@ -226,14 +226,14 @@ export default function Chatbot() {
                           ),
                           code: ({ children }) => (
                             <code
-                              className={`px-1.5 py-0.5 rounded text-xs font-mono ${message.role === "user" ? "bg-white/20" : "bg-gray-100"}`}
+                              className={`px-1.5 py-0.5 rounded text-xs font-mono ${message.role === "user" ? "bg-white/20" : "bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-100"}`}
                             >
                               {children}
                             </code>
                           ),
                           pre: ({ children }) => (
                             <pre
-                              className={`p-2 rounded overflow-x-auto mb-2 text-xs ${message.role === "user" ? "bg-white/20" : "bg-gray-100"}`}
+                              className={`p-2 rounded overflow-x-auto mb-2 text-xs ${message.role === "user" ? "bg-white/20" : "bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-100"}`}
                             >
                               {children}
                             </pre>
@@ -256,7 +256,7 @@ export default function Chatbot() {
                           ),
                           blockquote: ({ children }) => (
                             <blockquote
-                              className={`border-l-2 pl-2 italic my-2 ${message.role === "user" ? "border-white/30" : "border-gray-300"}`}
+                              className={`border-l-2 pl-2 italic my-2 ${message.role === "user" ? "border-white/30" : "border-gray-300 dark:border-gray-600"}`}
                             >
                               {children}
                             </blockquote>
@@ -270,7 +270,7 @@ export default function Chatbot() {
                       className={`text-xs mt-1 block ${
                         message.role === "user"
                           ? "text-white/70"
-                          : "text-gray-400"
+                          : "text-gray-400 dark:text-gray-400"
                       }`}
                     >
                       {message.timestamp.toLocaleTimeString([], {
@@ -288,7 +288,7 @@ export default function Chatbot() {
                   animate={{ opacity: 1, y: 0 }}
                   className="flex justify-start"
                 >
-                  <div className="bg-white text-gray-800 shadow-sm border border-gray-100 rounded-2xl px-4 py-3">
+                  <div className="bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 shadow-sm border border-gray-100 dark:border-gray-700 rounded-2xl px-4 py-3">
                     <Loader2 size={16} className="animate-spin text-blue-600" />
                   </div>
                 </motion.div>
@@ -298,7 +298,7 @@ export default function Chatbot() {
             </div>
 
             {/* Input Area */}
-            <div className="p-4 bg-white border-t border-gray-200">
+            <div className="p-4 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
               <div className="flex gap-2">
                 <Input
                   value={input}

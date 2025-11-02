@@ -52,7 +52,7 @@ const ActionButton = ({
     >
       <Icon size={24} />
     </div>
-    <span className="text-xs text-white drop-shadow-lg font-medium">
+    <span className="text-xs text-gray-900 dark:text-white drop-shadow-lg font-medium">
       {label}
     </span>
   </motion.button>
@@ -177,7 +177,7 @@ export default function CourseShortPage() {
   return (
     <Layout>
       <div
-        className="relative bg-black flex justify-center"
+        className="relative bg-white dark:bg-black flex justify-center"
         style={{ height: "calc(100vh - 4rem)" }}
       >
         {/* Back Button */}
@@ -185,7 +185,7 @@ export default function CourseShortPage() {
           <Button
             isIconOnly
             variant="flat"
-            className="bg-white/90 hover:bg-white"
+            className="bg-white/90 dark:bg-gray-800 hover:bg-white dark:hover:bg-gray-700"
             onPress={() => router.push(`/courses/${courseId}`)}
             aria-label="Back to course"
           >
@@ -219,16 +219,16 @@ export default function CourseShortPage() {
                   <header className="space-y-2">
                     <div className="flex items-center justify-between">
                       <span
-                        className="text-white/80 text-sm font-medium"
+                        className="text-sm text-gray-600 dark:text-white/80 font-medium"
                         aria-label="Reading time"
                       >
                         {currentArticle.duration}
                       </span>
-                      <span className="text-white/60 text-xs font-medium bg-white/10 px-2 py-1 rounded">
+                      <span className="text-xs font-medium text-gray-600 dark:text-gray-200 bg-white/10 dark:bg-white/5 px-2 py-1 rounded">
                         {course.title}
                       </span>
                     </div>
-                    <h1 className="text-4xl md:text-5xl font-bold text-white leading-tight">
+                    <h1 className="text-4xl md:text-5xl font-bold text-gray-900 dark:text-white leading-tight">
                       {currentArticle.title}
                     </h1>
                   </header>
@@ -237,24 +237,24 @@ export default function CourseShortPage() {
                     className="prose prose-invert prose-lg max-w-none"
                     aria-label="Article content"
                   >
-                    <div className="text-white/90 text-lg leading-relaxed markdown-content">
+                    <div className="text-gray-800 dark:text-white/90 text-lg leading-relaxed markdown-content">
                       <ReactMarkdown
                         components={{
                           p: ({ children }) => (
                             <p className="mb-4">{children}</p>
                           ),
                           h1: ({ children }) => (
-                            <h1 className="text-3xl font-bold mb-4 text-white">
+                            <h1 className="text-3xl font-bold mb-4 text-gray-900 dark:text-white">
                               {children}
                             </h1>
                           ),
                           h2: ({ children }) => (
-                            <h2 className="text-2xl font-bold mb-3 text-white">
+                            <h2 className="text-2xl font-bold mb-3 text-gray-900 dark:text-white">
                               {children}
                             </h2>
                           ),
                           h3: ({ children }) => (
-                            <h3 className="text-xl font-semibold mb-2 text-white">
+                            <h3 className="text-xl font-semibold mb-2 text-gray-900 dark:text-white">
                               {children}
                             </h3>
                           ),
@@ -269,22 +269,24 @@ export default function CourseShortPage() {
                             </ol>
                           ),
                           li: ({ children }) => (
-                            <li className="text-white/90">{children}</li>
+                            <li className="text-gray-800 dark:text-gray-100">
+                              {children}
+                            </li>
                           ),
                           code: ({ children }) => (
-                            <code className="bg-white/10 px-2 py-1 rounded text-sm">
+                            <code className="bg-white/10 dark:bg-gray-700 px-2 py-1 rounded text-sm text-gray-800 dark:text-gray-100">
                               {children}
                             </code>
                           ),
                           pre: ({ children }) => (
-                            <pre className="bg-white/10 p-4 rounded-lg overflow-x-auto mb-4">
+                            <pre className="bg-white/10 dark:bg-gray-700 p-4 rounded-lg overflow-x-auto mb-4 text-gray-800 dark:text-gray-100">
                               {children}
                             </pre>
                           ),
                           a: ({ children, href }) => (
                             <a
                               href={href}
-                              className="text-blue-300 hover:text-blue-200 underline"
+                              className="text-blue-600 dark:text-blue-300 hover:text-blue-800 underline"
                               target="_blank"
                               rel="noopener noreferrer"
                             >
@@ -292,7 +294,7 @@ export default function CourseShortPage() {
                             </a>
                           ),
                           strong: ({ children }) => (
-                            <strong className="font-bold text-white">
+                            <strong className="font-bold text-gray-900 dark:text-white">
                               {children}
                             </strong>
                           ),

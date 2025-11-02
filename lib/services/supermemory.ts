@@ -1,6 +1,13 @@
 // Supermemory service for user behavior tracking and recommendations
 import Supermemory from "supermemory";
 import type { UserBehavior, AdaptiveRecommendation } from "../types";
+import { ContainerTags } from "../utils/hash";
+
+interface UserProfile {
+  profile?: {
+    static?: string[];
+  };
+}
 
 class SupermemoryService {
   private client: Supermemory | null = null;
@@ -87,10 +94,9 @@ class SupermemoryService {
 
   /**
    * Get personalized recommendations based on user history
-   * @param userId - User ID for filtering
-   * @param courseId - Course ID for filtering
+   * @param _userId - User ID for filtering (currently unused)
+   * @param _courseId - Course ID for filtering (currently unused)
    */
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async getRecommendations(
     _userId: string,
     _courseId: string,
@@ -101,6 +107,9 @@ class SupermemoryService {
     }
 
     try {
+      // Mark params as used to satisfy lint rule for unused vars
+      void _userId;
+      void _courseId;
       // TODO: Implement sophisticated recommendation logic using:
       // - Search for user's recent behavior: await this.searchMemories(userId, `courseId ${courseId}`)
       // - Analyze completed articles to identify learning patterns
@@ -177,6 +186,213 @@ class SupermemoryService {
       timestamp: new Date().toISOString(),
       metadata: { quizScore: score },
     });
+  }
+
+  /**
+   * Get user profile from Supermemory
+   * Used for personalizing article generation
+   * Falls back to auth service profiles for prototype
+   */
+  async getUserProfile(userId: string): Promise<{
+    interests: string[];
+    learningGoals: string[];
+    preferredLearningStyle: string;
+  } | null> {
+    try {
+      if (!this.client) return null;
+
+      const memories = await this.client.search.memories({
+        q: "user profile interests learning goals learning style preferences",
+        containerTag: userId,
+        limit: 20,
+      });
+
+      if (!memories.results || memories.results.length === 0) {
+        return {
+          interests: [],
+          learningGoals: [],
+          preferredLearningStyle: "visual",
+        };
+      }
+
+      const interests: string[] = [];
+      const learningGoals: string[] = [];
+      let preferredLearningStyle = "visual";
+
+      for (const result of memories.results) {
+        const memory = result.memory;
+        let content = "";
+
+        if (typeof memory === "string") {
+          content = memory.toLowerCase();
+        } else {
+          const memObj = memory as { content?: string };
+          content = memObj?.content?.toLowerCase() || "";
+        }
+
+        if (content.includes("interest") || content.includes("like")) {
+          const match = content.match(/interest[s]?:?\s*([^.]+)/i);
+          if (match) interests.push(match[1].trim());
+        }
+
+        if (content.includes("goal") || content.includes("learn")) {
+          const match = content.match(/goal[s]?:?\s*([^.]+)/i);
+          if (match) learningGoals.push(match[1].trim());
+        }
+
+        if (content.includes("learning style") || content.includes("prefer")) {
+          if (content.includes("visual")) preferredLearningStyle = "visual";
+          else if (content.includes("auditory"))
+            preferredLearningStyle = "auditory";
+          else if (content.includes("kinesthetic"))
+            preferredLearningStyle = "kinesthetic";
+        }
+      }
+
+      return {
+        interests: [...new Set(interests)],
+        learningGoals: [...new Set(learningGoals)],
+        preferredLearningStyle,
+      };
+    } catch (error) {
+      console.error("Error fetching user profile:", error);
+      return {
+        interests: [],
+        learningGoals: [],
+        preferredLearningStyle: "visual",
+      };
+    }
+  }
+
+  /**
+   * Get fallback profile (for prototype)
+   * Note: Not currently used to avoid circular dependencies
+   */
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  private getFallbackProfile(_userId: string): UserProfile {
+    return { profile: { static: [] } };
+  }
+
+  /**
+   * Check if documentation already exists in Supermemory (shared container)
+   */
+  async checkDocumentationExists(courseId: string): Promise<boolean> {
+    try {
+      if (!this.client) return false;
+
+      const results = await this.client.search.memories({
+        q: "documentation",
+        containerTag: courseId,
+        limit: 1,
+      });
+      return (results.results?.length ?? 0) > 0;
+    } catch (error) {
+      console.error("Error checking documentation:", error);
+      return false;
+    }
+  }
+
+  /**
+   * Upload documentation to shared container
+   * Multiple users accessing same docs will share this container
+   */
+  async uploadDocumentation(
+    scrapedContent: Array<{
+      url: string;
+      title: string;
+      content?: string;
+      markdown?: string;
+      metadata?: Record<string, string | number | boolean>;
+    }>,
+    sourceHash: string,
+    userId: string,
+  ): Promise<string[]> {
+    if (!this.client) {
+      throw new Error("Supermemory not configured");
+    }
+
+    const documentIds: string[] = [];
+
+    for (const page of scrapedContent) {
+      try {
+        const result = await this.client.memories.add({
+          content: page.markdown || page.content || "",
+          containerTag: ContainerTags.documentation(sourceHash)[0],
+          metadata: {
+            url: page.url,
+            title: page.title,
+            type: "documentation_page",
+            source: "firecrawl",
+            createdBy: userId,
+            createdAt: new Date().toISOString(),
+            ...page.metadata,
+          },
+        });
+
+        documentIds.push(result.id);
+
+        // Rate limiting
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      } catch (error) {
+        console.error(`Failed to upload ${page.url}:`, error);
+      }
+    }
+
+    return documentIds;
+  }
+
+  /**
+   * Generate topic hierarchy from documentation in Supermemory
+   * Replaces Cohere topic extraction
+   */
+  async generateTopicHierarchy(
+    sourceHash: string,
+  ): Promise<
+    { id: string; content: string; metadata?: Record<string, unknown> }[]
+  > {
+    if (!this.client) {
+      console.warn("Supermemory not configured");
+      return [];
+    }
+
+    try {
+      // Search for all documentation memories in the shared container
+      const results = await this.client.search.memories({
+        q: "documentation", // API requires non-empty query (min 1 char)
+        containerTag: ContainerTags.documentation(sourceHash)[0],
+        limit: 100, // API max is 100
+      });
+
+      return (
+        results.results?.map((result) => {
+          const memory = result.memory;
+          if (typeof memory === "string") {
+            return {
+              id: result.id || "",
+              content: memory,
+              metadata: {},
+            };
+          }
+          const memObj = memory as {
+            id?: string;
+            content?: string;
+            raw?: unknown;
+            metadata?: Record<string, unknown>;
+          };
+          return {
+            id: memObj?.id || result.id || "",
+            content:
+              memObj?.content ||
+              (typeof memObj?.raw === "string" ? memObj.raw : "") ||
+              "",
+            metadata: memObj?.metadata || {},
+          };
+        }) || []
+      );
+    } catch (error) {
+      console.error("Failed to fetch memories from Supermemory:", error);
+      return [];
+    }
   }
 
   /**

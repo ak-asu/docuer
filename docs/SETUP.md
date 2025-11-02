@@ -232,6 +232,16 @@ In service files, you can change models:
 - Verify your connection URI format: `neo4j+s://xxx.neo4j.io`
 - Check username and password are correct
 - Neo4j is optional - the app works without it
+- **Check the logs:** When you create a course, check the terminal/console for Neo4j logs:
+  - `✅ Neo4j driver initialized successfully` - Connection working
+  - `⚠️ Neo4j not configured` - Environment variables not set
+  - `❌ Failed to initialize Neo4j driver` - Connection failed
+- **Verify data in Neo4j:**
+  1. Open your Neo4j Aura dashboard
+  2. Click "Query" or "Explore"
+  3. Run: `MATCH (n) RETURN n LIMIT 25` to see nodes
+  4. Run: `MATCH (c:Course) RETURN c` to see courses
+  5. Run: `MATCH (a:Article) RETURN COUNT(a)` to count articles
 
 ### Quiz not generating
 

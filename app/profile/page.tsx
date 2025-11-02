@@ -68,7 +68,7 @@ export default function UserDetailPage() {
   return (
     <Layout>
       <main
-        className="min-h-screen bg-gray-50 p-4 md:p-8"
+        className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4 md:p-8"
         role="main"
         aria-label="User profile"
       >

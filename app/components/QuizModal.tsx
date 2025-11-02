@@ -121,7 +121,7 @@ export default function QuizModal({ isOpen, onClose }: QuizModalProps) {
         <ModalHeader>
           <div className="flex justify-between items-center w-full">
             <h2 className="text-2xl font-bold">Quick Quiz</h2>
-            <span className="text-sm text-gray-600">
+            <span className="text-sm text-gray-600 dark:text-gray-300">
               Question {currentQuestionIndex + 1} of {relevantQuestions.length}
             </span>
           </div>
@@ -135,7 +135,7 @@ export default function QuizModal({ isOpen, onClose }: QuizModalProps) {
               exit={{ opacity: 0, x: -20 }}
               className="space-y-6"
             >
-              <Card className="bg-blue-50 border-2 border-blue-200">
+              <Card className="bg-blue-50 dark:bg-blue-900/10 border-2 border-blue-200">
                 <CardBody>
                   <h3 className="font-semibold text-lg mb-4">
                     {currentQuestion.question}
@@ -158,12 +158,12 @@ export default function QuizModal({ isOpen, onClose }: QuizModalProps) {
                           whileTap={!showResult ? { scale: 0.98 } : {}}
                           className={`w-full p-4 rounded-lg border-2 transition-all text-left flex items-center justify-between ${
                             showCorrect
-                              ? "bg-green-100 border-green-500"
+                              ? "bg-green-100 dark:bg-green-900/20 border-green-500"
                               : showIncorrect
-                                ? "bg-red-100 border-red-500"
+                                ? "bg-red-100 dark:bg-red-900/20 border-red-500"
                                 : isSelected
-                                  ? "bg-blue-100 border-blue-500"
-                                  : "bg-white border-gray-200 hover:border-blue-300"
+                                  ? "bg-blue-100 dark:bg-blue-900/20 border-blue-500"
+                                  : "bg-white dark:bg-gray-800 dark:text-gray-100 border-gray-200 dark:border-gray-700 hover:border-blue-300"
                           } ${showResult ? "cursor-not-allowed" : "cursor-pointer"}`}
                         >
                           <span className="font-medium">{option}</span>
@@ -188,8 +188,8 @@ export default function QuizModal({ isOpen, onClose }: QuizModalProps) {
                     exit={{ opacity: 0, y: -10 }}
                     className={`p-4 rounded-lg ${
                       isCorrect
-                        ? "bg-green-50 border border-green-200"
-                        : "bg-red-50 border border-red-200"
+                        ? "bg-green-50 dark:bg-green-900/10 border border-green-200"
+                        : "bg-red-50 dark:bg-red-900/10 border border-red-200"
                     }`}
                   >
                     <div className="flex items-center gap-2">
@@ -219,7 +219,7 @@ export default function QuizModal({ isOpen, onClose }: QuizModalProps) {
               </AnimatePresence>
 
               <div className="flex gap-2">
-                <div className="flex-1 bg-gray-200 rounded-full h-2">
+                <div className="flex-1 bg-gray-200 dark:bg-gray-700 rounded-full h-2">
                   <motion.div
                     className="bg-blue-600 h-2 rounded-full"
                     initial={{ width: 0 }}
@@ -229,7 +229,7 @@ export default function QuizModal({ isOpen, onClose }: QuizModalProps) {
                     transition={{ duration: 0.3 }}
                   />
                 </div>
-                <span className="text-sm text-gray-600">
+                <span className="text-sm text-gray-600 dark:text-gray-300">
                   Score: {score}/{relevantQuestions.length}
                 </span>
               </div>
@@ -247,20 +247,20 @@ export default function QuizModal({ isOpen, onClose }: QuizModalProps) {
               </div>
 
               <div>
-                <h3 className="text-3xl font-bold text-gray-900 mb-2">
+                <h3 className="text-3xl font-bold text-gray-900 dark:text-gray-50 mb-2">
                   Quiz Complete!
                 </h3>
-                <p className="text-gray-600">
+                <p className="text-gray-600 dark:text-gray-300">
                   You&apos;ve completed all the questions
                 </p>
               </div>
 
-              <Card className="bg-linear-to-br from-blue-50 to-purple-50 border-2 border-blue-200">
+              <Card className="bg-linear-to-br from-blue-50 to-purple-50 border-2 border-blue-200 dark:bg-linear-to-br">
                 <CardBody className="text-center py-6">
                   <p className="text-6xl font-bold text-blue-600 mb-2">
                     {percentage}%
                   </p>
-                  <p className="text-gray-700 font-medium">
+                  <p className="text-gray-700 dark:text-gray-200 font-medium">
                     You got {score} out of {relevantQuestions.length} questions
                     correct
                   </p>
@@ -268,12 +268,12 @@ export default function QuizModal({ isOpen, onClose }: QuizModalProps) {
               </Card>
 
               {percentage < 70 && (
-                <p className="text-gray-600">
+                <p className="text-gray-600 dark:text-gray-300">
                   Consider reviewing the articles to improve your understanding!
                 </p>
               )}
               {percentage >= 70 && percentage < 90 && (
-                <p className="text-gray-600">
+                <p className="text-gray-600 dark:text-gray-300">
                   Good job! Keep learning to master these topics!
                 </p>
               )}

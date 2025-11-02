@@ -1,13 +1,14 @@
 "use client";
 
-import { ReactNode, useState } from "react";
+import { ReactNode, useState, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { Button, Avatar } from "@heroui/react";
-import { Home, BookOpen, Settings, Menu, X } from "lucide-react";
+import { Home, BookOpen, Settings, Menu, X, LogOut } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import SettingsDialog from "./SettingsDialog";
 import Chatbot from "./Chatbot";
 import { useStore } from "@/lib/store/useStore";
+import { authService } from "@/lib/services/auth";
 
 interface LayoutProps {
   children: ReactNode;
@@ -18,7 +19,26 @@ export default function Layout({ children }: LayoutProps) {
   const pathname = usePathname();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const { userProfile } = useStore();
+  const { userProfile, updateUserProfile } = useStore();
+
+  // Check authentication on mount
+  useEffect(() => {
+    const currentUser = authService.getCurrentUser();
+    if (!currentUser && pathname !== "/login") {
+      router.push("/login");
+    } else if (currentUser && userProfile.name !== currentUser.name) {
+      // Sync user profile with auth service
+      updateUserProfile({
+        name: currentUser.name,
+        email: currentUser.email,
+      });
+    }
+  }, [pathname, router, userProfile.name, updateUserProfile]);
+
+  const handleLogout = () => {
+    authService.logout();
+    router.push("/login");
+  };
 
   const navItems = [
     { path: "/courses", label: "Courses", icon: BookOpen },
@@ -28,16 +48,18 @@ export default function Layout({ children }: LayoutProps) {
   const isActive = (path: string) => pathname?.startsWith(path);
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <header className="bg-white shadow-sm sticky top-0 z-40">
         <nav className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <button
               onClick={() => router.push("/onboarding")}
-              className="flex items-center gap-3 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-lg px-2 py-1 hover:bg-gray-50 transition-colors"
+              className="flex items-center gap-3 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-lg px-2 py-1 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
             >
               <div className="w-8 h-8 bg-linear-to-br from-blue-600 to-green-600 rounded-lg" />
-              <span className="text-xl font-bold text-gray-900">LearnFlow</span>
+              <span className="text-xl font-bold text-gray-900 dark:text-gray-50">
+                LearnFlow
+              </span>
             </button>
 
             <div className="hidden md:flex items-center gap-6">
@@ -50,8 +72,8 @@ export default function Layout({ children }: LayoutProps) {
                     onClick={() => router.push(item.path)}
                     className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${
                       active
-                        ? "text-blue-600 bg-blue-50 font-semibold"
-                        : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+                        ? "text-blue-600 bg-blue-50 dark:bg-blue-900/20 font-semibold"
+                        : "text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-50 hover:bg-gray-100 dark:hover:bg-gray-800"
                     }`}
                   >
                     <Icon size={20} />
@@ -62,6 +84,14 @@ export default function Layout({ children }: LayoutProps) {
             </div>
 
             <div className="flex items-center gap-3">
+              <Button
+                isIconOnly
+                variant="light"
+                onPress={handleLogout}
+                title="Logout"
+              >
+                <LogOut size={20} />
+              </Button>
               <Button
                 isIconOnly
                 variant="light"
@@ -98,7 +128,7 @@ export default function Layout({ children }: LayoutProps) {
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: "auto", opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
-              className="md:hidden border-t border-gray-200 bg-white overflow-hidden"
+              className="md:hidden border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 overflow-hidden"
             >
               <div className="px-4 py-3 space-y-2">
                 {navItems.map((item) => {

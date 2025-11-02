@@ -3,16 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  Card,
-  CardBody,
-  Modal,
-  ModalContent,
-  ModalHeader,
-  ModalBody,
-  ModalFooter,
-  Button,
-} from "@heroui/react";
+import { Card, CardBody, Button } from "@heroui/react";
 import { BookOpen, MessageCircle, Bookmark, Brain, Check } from "lucide-react";
 import { useStore } from "@/lib/store/useStore";
 import QuizModal from "@/app/components/QuizModal";
@@ -44,7 +35,7 @@ const ActionButton = ({
     >
       <Icon size={24} />
     </div>
-    <span className="text-xs text-white drop-shadow-lg font-medium">
+    <span className="text-xs text-gray-900 dark:text-white drop-shadow-lg font-medium">
       {label}
     </span>
   </motion.button>
@@ -151,11 +142,13 @@ export default function ShortsPage() {
   return (
     <Layout>
       <div
-        className="relative bg-black flex justify-center"
+        className="relative bg-white dark:bg-black flex justify-center overflow-hidden"
         style={{ height: "calc(100vh - 4rem)" }}
       >
-        <main
+        <motion.main
           ref={containerRef}
+          animate={{ x: showRelatedArticles ? "-25%" : 0 }}
+          transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
           className="w-full max-w-[500px] h-full overflow-hidden relative"
           onTouchStart={handleTouchStart}
           onTouchEnd={handleTouchEnd}
@@ -166,25 +159,25 @@ export default function ShortsPage() {
           <AnimatePresence mode="wait" initial={false}>
             <motion.div
               key={currentArticle.id}
-              initial={{ y: scrollDirection === "down" ? "100%" : "-100%" }}
+              initial={{ y: scrollDirection === "up" ? "100%" : "-100%" }}
               animate={{ y: 0 }}
-              exit={{ y: scrollDirection === "down" ? "-100%" : "100%" }}
-              transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
-              className="absolute inset-0"
+              exit={{ y: scrollDirection === "up" ? "-100%" : "100%" }}
+              transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
+              className="absolute inset-0 m-2"
               onClick={handleDoubleTap}
             >
-              <div className="absolute inset-0 bg-linear-to-br from-blue-900 via-blue-700 to-green-600 opacity-90" />
+              <div className="absolute inset-0 bg-linear-to-br from-blue-900 via-blue-700 to-green-600 opacity-90 rounded-lg" />
 
-              <article className="relative h-full flex flex-col justify-center p-6 md:p-12">
+              <article className="relative h-full flex flex-col justify-center p-6 md:p-12 overflow-y-auto">
                 <div className="space-y-6">
                   <header className="space-y-2">
                     <span
-                      className="text-white/80 text-sm font-medium"
+                      className="text-sm text-gray-600 dark:text-white/80 font-medium"
                       aria-label="Reading time"
                     >
                       {currentArticle.duration}
                     </span>
-                    <h1 className="text-4xl md:text-5xl font-bold text-white leading-tight">
+                    <h1 className="text-4xl md:text-5xl font-bold text-gray-900 dark:text-white leading-tight">
                       {currentArticle.title}
                     </h1>
                   </header>
@@ -193,14 +186,14 @@ export default function ShortsPage() {
                     className="prose prose-invert prose-lg max-w-none"
                     aria-label="Article content"
                   >
-                    <p className="text-white/90 text-lg leading-relaxed whitespace-pre-line">
+                    <p className="text-gray-800 dark:text-white/90 text-lg leading-relaxed whitespace-pre-line">
                       {currentArticle.content}
                     </p>
                   </section>
 
                   <footer className="flex items-center gap-2 pt-4">
                     <div
-                      className="text-white/70 text-sm"
+                      className="text-gray-600 dark:text-white/70 text-sm"
                       aria-label="Article progress"
                     >
                       Article {currentArticleIndex + 1} of {articles.length}
@@ -235,10 +228,14 @@ export default function ShortsPage() {
               </AnimatePresence>
             </motion.div>
           </AnimatePresence>
-        </main>
+        </motion.main>
 
-        {/* Action Buttons - Positioned outside shorts container */}
-        <div className="absolute right-4 md:right-8 top-1/2 -translate-y-1/2 flex flex-col gap-4 z-10">
+        {/* Action Buttons - Positioned just to the right of the short */}
+        <motion.div
+          animate={{ x: showRelatedArticles ? "-25%" : 0 }}
+          transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
+          className="absolute left-[calc(50%+250px+1rem)] top-1/2 -translate-y-1/2 flex flex-col gap-4 z-10 max-[1040px]:right-4 max-[1040px]:left-auto"
+        >
           <ActionButton
             icon={BookOpen}
             label="In-Depth"
@@ -268,72 +265,100 @@ export default function ShortsPage() {
             label="Quiz"
             onClick={() => setShowQuizModal(true)}
           />
-        </div>
-      </div>
+        </motion.div>
 
-      <Modal
-        aria-labelledby="related-articles-title"
-        isOpen={showRelatedArticles}
-        onClose={() => setShowRelatedArticles(false)}
-        size="2xl"
-        scrollBehavior="inside"
-      >
-        <ModalContent>
-          <ModalHeader>
-            <h2 id="related-articles-title" className="text-2xl font-bold">
-              Related Articles
-            </h2>
-          </ModalHeader>
-          <ModalBody>
-            <div className="space-y-3">
-              {relatedArticles.length > 0 ? (
-                relatedArticles.map((article) => (
-                  <motion.div
-                    key={article.id}
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
+        {/* Related Articles Side Panel */}
+        <AnimatePresence>
+          {showRelatedArticles && (
+            <>
+              {/* Backdrop */}
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="absolute inset-0 bg-black/50 z-20"
+                onClick={() => setShowRelatedArticles(false)}
+              />
+
+              {/* Side Panel */}
+              <motion.div
+                initial={{ x: "100%" }}
+                animate={{ x: 0 }}
+                exit={{ x: "100%" }}
+                transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
+                className="absolute right-0 top-0 bottom-0 w-full max-w-md bg-white dark:bg-gray-900 z-30 flex flex-col shadow-2xl"
+              >
+                {/* Header */}
+                <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+                  <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                    Related Articles
+                  </h2>
+                  <Button
+                    isIconOnly
+                    variant="light"
+                    onPress={() => setShowRelatedArticles(false)}
+                    aria-label="Close panel"
                   >
-                    <Card
-                      isPressable
-                      onPress={() => {
-                        const index = articles.findIndex(
-                          (a) => a.id === article.id,
-                        );
-                        if (index !== -1) {
-                          setCurrentArticleIndex(index);
-                          setShowRelatedArticles(false);
-                        }
-                      }}
-                      className="shadow-md"
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="24"
+                      height="24"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
                     >
-                      <CardBody>
-                        <h3 className="font-semibold text-lg mb-1">
-                          {article.title}
-                        </h3>
-                        <p className="text-sm text-gray-600">
-                          {article.duration}
-                        </p>
-                      </CardBody>
-                    </Card>
-                  </motion.div>
-                ))
-              ) : (
-                <p className="text-gray-600 text-center py-8">
-                  No related articles available
-                </p>
-              )}
-            </div>
-          </ModalBody>
-          <ModalFooter>
-            <Button
-              variant="flat"
-              onPress={() => setShowRelatedArticles(false)}
-            >
-              Close
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+                      <line x1="18" y1="6" x2="6" y2="18"></line>
+                      <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                  </Button>
+                </div>
+
+                {/* Content */}
+                <div className="flex-1 overflow-y-auto p-4">
+                  <div className="space-y-3">
+                    {relatedArticles.length > 0 ? (
+                      relatedArticles.map((article) => (
+                        <motion.div key={article.id} whileTap={{ scale: 0.98 }}>
+                          <Card
+                            isPressable
+                            onPress={() => {
+                              const index = articles.findIndex(
+                                (a) => a.id === article.id,
+                              );
+                              if (index !== -1) {
+                                setCurrentArticleIndex(index);
+                                setShowRelatedArticles(false);
+                              }
+                            }}
+                            className="shadow-md hover:shadow-lg transition-shadow"
+                          >
+                            <CardBody>
+                              <h3 className="font-semibold text-lg mb-1">
+                                {article.title}
+                              </h3>
+                              <p className="text-sm text-gray-600">
+                                {article.duration}
+                              </p>
+                            </CardBody>
+                          </Card>
+                        </motion.div>
+                      ))
+                    ) : (
+                      <p className="text-gray-600 text-center py-8">
+                        No related articles available
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </motion.div>
+            </>
+          )}
+        </AnimatePresence>
+      </div>
 
       <QuizModal
         isOpen={showQuizModal}
